@@ -5,6 +5,7 @@ var createRegl = require('regl')
 var pick = require('pick-by-alias')
 var createGl = require('gl-util/context')
 var WeakMap = require('es6-weak-map')
+var rgba = require('color-normalize')
 
 var cache = new WeakMap
 
@@ -34,18 +35,35 @@ module.exports = class Text {
 					uv = vec2(1. - position.s, position.t);
 					gl_Position = vec4(1.0 - 2.0 * position, 0, 1);
 				}`,
+
 				frag: `
 				precision mediump float;
 				uniform sampler2D texture;
+				uniform vec4 color;
 				varying vec2 uv;
 				void main () {
-					gl_FragColor = texture2D(texture, uv);
+					vec4 fontColor = color;
+					fontColor.a *= texture2D(texture, uv).r;
+					gl_FragColor = fontColor;
 				}`,
+
+				blend: {
+					enable: true,
+					color: [0,0,0,1],
+
+					func: {
+						srcRGB: 'src alpha',
+						dstRGB: 'one minus src alpha',
+						srcAlpha: 'one minus dst alpha',
+						dstAlpha: 'one'
+					}
+				},
 
 				attributes: { position: [-2,0, 0,-2, 2,2] },
 				uniforms: {
 					texture: regl.this('texture'),
-					viewport: regl.this('viewport')
+					viewport: regl.this('viewport'),
+					color: regl.this('color')
 				},
 				count: 3
 			})
@@ -104,26 +122,33 @@ module.exports = class Text {
 				this.texture = this.shader.fontCache[this.font][this.text] = this.createTexture()
 			}
 		}
+
+		if (o.color) {
+			this.color = rgba(o.color)
+		}
+		if (!this.color) this.color = [0,0,0,1]
 	}
 
 	// return regl texture with rendered text with a font
 	createTexture () {
 		let canvas = this.shader.fontCanvas
-		let ctx = canvas.getContext('2d')
+
+		// FIXME: in chrome font alpha depends on color seemingly to compensate constrast
+		// but that makes for inconsistency of font color
+		let ctx = canvas.getContext('2d', {alpha: false})
 
 		ctx.font = this.font
-		// ctx.textAlign = this.align
-		// ctx.textBaseline = this.baseline
-		// ctx.direction = this.direction
-		// ctx.fillColor = this.color || 'black'
+		ctx.textAlign = this.align
+		ctx.textBaseline = this.baseline
+		ctx.direction = this.direction
+		ctx.fillStyle = '#fff'
 
 		// let metric = ctx.measureText(this.text)
 
 		// canvas.width = metric.width
 
-		// ctx.fillText(this.text, 0, 0)
-		ctx.font = '48px serif';
-		ctx.fillText('Hello world', 10, 50);
+		ctx.font = this.font;
+		ctx.fillText(this.text, 0, 0);
 
 		// document.body.appendChild(canvas)
 
