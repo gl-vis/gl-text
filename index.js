@@ -8,6 +8,7 @@ let WeakMap = require('es6-weak-map')
 let rgba = require('color-normalize')
 let fontAtlas = require('font-atlas')
 let extend = require('object-assign')
+let pool = require('typedarray-pool')
 
 let cache = new WeakMap
 
@@ -30,25 +31,31 @@ class Text {
 			let draw = regl({
 				vert: `
 				precision mediump float;
-				varying vec2 uv;
 				attribute float offset;
 				uniform float fontSize;
 				uniform vec4 viewport;
+				varying vec2 charCoord;
 				void main () {
+					charCoord = vec2(offset, 50);
+
+					vec2 position = charCoord / viewport.zw;
+					gl_Position = vec4(position * 2. - 1., 0, 1);
+
 					gl_PointSize = fontSize;
-					gl_Position = vec4(offset / 1000., 0, 0, 1);
 				}`,
 
 				frag: `
 				precision mediump float;
-				uniform sampler2D texture;
-				uniform vec4 color;
-				varying vec2 uv;
+				uniform sampler2D atlas;
+				uniform vec4 color, viewport;
+				uniform float fontSize, atlasFontSize;
+				uniform vec2 atlasSize;
+				varying vec2 charCoord;
 				void main () {
 					vec4 fontColor = color;
-					gl_FragColor = color;
-					// fontColor.a *= texture2D(texture, uv).g;
-					// gl_FragColor = fontColor;
+					vec2 uv = (gl_FragCoord.xy - (charCoord - fontSize*.5)) / atlasFontSize;
+					fontColor.a *= texture2D(atlas, uv).g;
+					gl_FragColor = fontColor;
 				}`,
 
 				blend: {
@@ -68,17 +75,17 @@ class Text {
 					offset: regl.this('offsetBuffer')
 				},
 				uniforms: {
-					texture: regl.this('atlasTexture'),
-					viewport: regl.this('viewport'),
+					atlasSize: Text.atlasSize,
+					atlasFontSize: Text.atlasFontSize,
+					atlas: regl.this('atlasTexture'),
+					viewport: regl.this('viewportArray'),
 					color: regl.this('color'),
 					fontSize: regl.this('fontSize')
 				},
 				primitive: 'points',
-				count: regl.this('count')
+				count: regl.this('count'),
+				viewport: regl.this('viewport')
 			})
-
-			// FIXME: in chrome font alpha depends on color seemingly to compensate constrast
-			// but that makes for inconsistency of font color
 
 			shader = { regl, draw, atlasCache }
 
@@ -111,14 +118,17 @@ class Text {
 		}, true)
 
 		if (o.opacity != null) this.opacity = parseFloat(o.opacity)
-		if (o.viewport != null) this.viewport = parseRect(o.viewport)
-
+		if (o.viewport != null) {
+			this.viewport = parseRect(o.viewport)
+			this.viewportArray = [this.viewport.x, this.viewport.y, this.viewport.width, this.viewport.height]
+		}
 		if (this.viewport == null) {
 			this.viewport = {
 				x: 0, y: 0,
 				width: this.gl.drawingBufferWidth,
 				height: this.gl.drawingBufferHeight
 			}
+			this.viewportArray = [this.viewport.x, this.viewport.y, this.viewport.width, this.viewport.height]
 		}
 
 		if (o.baseline) this.baseline = o.baseline
@@ -132,20 +142,21 @@ class Text {
 
 			// update font atlas
 			let nfont = extend({}, o.font)
-			nfont.size = Text.atlasCacheFontSize
+			nfont.size = Text.atlasFontSize
 			this.atlasFont = Font.stringify(nfont)
 
 			if (!this.atlasCache[this.atlasFont]) {
 				let atlas = fontAtlas({
 					font: this.atlasFont,
 					chars: [],
-					shape: [Text.atlasCacheWidth, Text.atlasCacheWidth],
-					step: [Text.atlasCacheFontSize * 2, Text.atlasCacheFontSize * 2]
+					shape: [Text.atlasSize, Text.atlasSize],
+					step: [Text.atlasFontSize, Text.atlasFontSize]
 				})
 
 				this.atlasCache[this.atlasFont] = {
 					font: this.font,
 					canvas: atlas,
+					context: atlas.getContext('2d'),
 					texture: this.regl.texture(),
 					widths: {},
 					ids: {},
@@ -163,10 +174,9 @@ class Text {
 			this.count = o.text.length
 
 			let atlas = this.atlas
-			let ctx = atlas.canvas.getContext('2d')
 			let newChars = 0
-			let charIds = new Uint8Array(this.count)
-			let offsets = new Float32Array(this.count)
+			let charIds = pool.mallocUint8(this.count)
+			let offsets = pool.mallocFloat(this.count)
 
 			// detect new characters and calculate offsets
 			for (let i = 0; i < this.count; i++) {
@@ -175,7 +185,7 @@ class Text {
 				if (!atlas.ids[char]) {
 					atlas.ids[char] = atlas.chars.length
 					atlas.chars.push(char)
-					atlas.widths[char] = ctx.measureText(char).width
+					atlas.widths[char] = atlas.context.measureText(char).width
 
 					newChars++
 				}
@@ -186,14 +196,16 @@ class Text {
 
 			this.charBuffer({data: charIds, type: 'uint8', usage: 'stream'})
 			this.offsetBuffer({data: offsets, type: 'float', usage: 'stream'})
+			pool.freeUint8(charIds)
+			pool.freeFloat(offsets)
 
 			// render new characters
 			if (newChars) {
 				atlas.canvas = fontAtlas({
 					font: this.atlasFont,
 					chars: atlas.chars,
-					shape: [Text.atlasCacheWidth, Text.atlasCacheWidth],
-					step: [Text.atlasCacheFontSize, Text.atlasCacheFontSize]
+					shape: [Text.atlasSize, Text.atlasSize],
+					step: [Text.atlasFontSize, Text.atlasFontSize]
 				})
 				atlas.texture(atlas.canvas)
 			}
@@ -207,8 +219,8 @@ class Text {
 }
 
 
-Text.atlasCacheWidth = 1024
-Text.atlasCacheFontSize = 128
+Text.atlasSize = 1024
+Text.atlasFontSize = 128
 
 
 module.exports = Text
