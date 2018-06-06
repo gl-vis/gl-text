@@ -1,29 +1,30 @@
 'use strict'
 
-var font = require('css-font')
-var createRegl = require('regl')
-var pick = require('pick-by-alias')
-var createGl = require('gl-util/context')
-var WeakMap = require('es6-weak-map')
-var rgba = require('color-normalize')
+let Font = require('css-font')
+let createRegl = require('regl')
+let pick = require('pick-by-alias')
+let createGl = require('gl-util/context')
+let WeakMap = require('es6-weak-map')
+let rgba = require('color-normalize')
+let fontAtlas = require('font-atlas')
+let extend = require('object-assign')
 
-var cache = new WeakMap
+let cache = new WeakMap
 
 
-module.exports = class Text {
+class Text {
 	constructor (o) {
 		this.gl = createGl(o)
 
-		var shader = cache.get(this.gl)
+		let shader = cache.get(this.gl)
 
 		if (!shader) {
-			var regl = createRegl({gl: this.gl})
+			let regl = createRegl({
+				gl: this.gl
+			})
 
-			// text texture cache
-			let fontCache = {}
-
-			// canvas2d for rendering text fragment textures
-			let fontCanvas = document.createElement('canvas')
+			// font atlas cache, per-font
+			let atlas = {}
 
 			// draw texture method
 			let draw = regl({
@@ -31,8 +32,11 @@ module.exports = class Text {
 				precision mediump float;
 				attribute vec2 position;
 				varying vec2 uv;
+				uniform float width;
+				uniform vec4 viewport;
 				void main () {
 					uv = vec2(1. - position.s, position.t);
+
 					gl_Position = vec4(1.0 - 2.0 * position, 0, 1);
 				}`,
 
@@ -43,7 +47,7 @@ module.exports = class Text {
 				varying vec2 uv;
 				void main () {
 					vec4 fontColor = color;
-					fontColor.a *= texture2D(texture, uv).r;
+					fontColor.a *= texture2D(texture, uv).g;
 					gl_FragColor = fontColor;
 				}`,
 
@@ -59,28 +63,36 @@ module.exports = class Text {
 					}
 				},
 
-				attributes: { position: [-2,0, 0,-2, 2,2] },
+				attributes: {
+					position: [-2,0, 0,-2, 2,2]
+				},
 				uniforms: {
 					texture: regl.this('texture'),
 					viewport: regl.this('viewport'),
-					color: regl.this('color')
+					color: regl.this('color'),
+					width: regl.this('width')
 				},
 				count: 3
 			})
 
-			shader = { regl, draw, fontCache, fontCanvas }
+			// FIXME: in chrome font alpha depends on color seemingly to compensate constrast
+			// but that makes for inconsistency of font color
+
+			shader = { regl, draw, atlas}
 
 			cache.set(this.gl, shader)
 		}
 
 		this.render = shader.draw.bind(this)
-		this.shader = shader
+		this.regl = shader.regl
+		this.atlas = shader.atlas
 
 		this.update(o)
 	}
 
 	update (o) {
 		if (typeof o === 'string') o = { text: o }
+		else if (!o) o = {}
 
 		o = pick(o, {
 			font: 'font fontFace fontface typeface cssFont css-font',
@@ -97,7 +109,8 @@ module.exports = class Text {
 		if (o.viewport != null) this.viewport = parseRect(o.viewport)
 
 		if (this.viewport == null) {
-			this.viewport = { x: 0, y: 0,
+			this.viewport = {
+				x: 0, y: 0,
 				width: this.gl.drawingBufferWidth,
 				height: this.gl.drawingBufferHeight
 			}
@@ -106,21 +119,19 @@ module.exports = class Text {
 		if (o.baseline) this.baseline = o.baseline
 		if (o.direction) this.direction = o.direction
 		if (o.align) this.align = o.align
-		if (o.text) this.text = o.text
 
 		// normalize font caching string
-		if (typeof o.font === 'string') o.font = font.parse(o.font)
-		if (o.font) this.font = font.stringify(o.font)
+		if (typeof o.font === 'string') o.font = Font.parse(o.font)
+		if (o.font) {
+			this.font = o.font
+		}
 
 		if (o.text) {
-			if (!this.shader.fontCache[this.font]) this.shader.fontCache[this.font] = {}
+			this.text = o.text
+		}
 
-			if (this.shader.fontCache[this.font][this.text]) {
-				this.texture = this.shader.fontCache[this.font][this.text]
-			}
-			else {
-				this.texture = this.shader.fontCache[this.font][this.text] = this.createTexture()
-			}
+		if (o.font || o.text) {
+			this.updateAtlas(this.font, this.text)
 		}
 
 		if (o.color) {
@@ -129,30 +140,72 @@ module.exports = class Text {
 		if (!this.color) this.color = [0,0,0,1]
 	}
 
-	// return regl texture with rendered text with a font
-	createTexture () {
-		let canvas = this.shader.fontCanvas
+	// make sure text characters are in font atlas
+	updateAtlas (font, text) {
+		let nfont = extend({}, font)
+		nfont.size = Text.atlasFontSize
+		let nfontStr = Font.stringify(nfont)
 
-		// FIXME: in chrome font alpha depends on color seemingly to compensate constrast
-		// but that makes for inconsistency of font color
-		let ctx = canvas.getContext('2d', {alpha: false})
+		if (!this.atlas[nfontStr]) {
+			let atlas = fontAtlas({
+				// hack to support correct fonts
+				// TODO: PR for https://github.com/hughsk/font-atlas/issues/1
+				size: nfontStr,
+				family: ' ',
+				chars: [],
+				shape: [Text.atlasWidth, Text.atlasWidth],
+				step: [Text.atlasFontSize * 2, Text.atlasFontSize * 2]
+			})
 
-		ctx.font = this.font
-		ctx.textAlign = this.align
-		ctx.textBaseline = this.baseline
-		ctx.direction = this.direction
-		ctx.fillStyle = '#fff'
+			let texture = this.regl.texture({width: 1, height: 1})
 
-		// let metric = ctx.measureText(this.text)
+			this.atlas[nfontStr] = {
+				font: font,
+				canvas: atlas,
+				texture: texture,
+				widths: {},
+				ids: {},
+				chars: []
+			}
+		}
 
-		// canvas.width = metric.width
+		let atlas = this.atlas[nfontStr]
+		let ctx = atlas.canvas.getContext('2d')
 
-		ctx.font = this.font;
-		ctx.fillText(this.text, 0, 0);
+		// extend characters
+		let newChars = 0
+		for (let i = 0; i < text.length; i++) {
+			let char = text.charAt(i)
 
-		// document.body.appendChild(canvas)
+			if (!atlas.ids[char]) {
+				atlas.ids[char] = atlas.chars.length
+				atlas.chars.push(char)
+				atlas.widths[char] = ctx.measureText(char)
 
-		return this.shader.regl.texture(canvas)
+				newChars++
+			}
+		}
+
+		// render font atlas
+		if (newChars) {
+			atlas.canvas = fontAtlas({
+				// hack to support correct fonts
+				// TODO: PR for https://github.com/hughsk/font-atlas/issues/1
+				size: nfontStr,
+				family: ' ',
+				chars: atlas.chars,
+				shape: [Text.atlasWidth, Text.atlasWidth],
+				step: [Text.atlasFontSize * 2, Text.atlasFontSize * 2]
+			})
+		}
+
+		document.body.appendChild(atlas.canvas)
 	}
 }
 
+
+Text.atlasWidth = 1024
+Text.atlasFontSize = 64
+
+
+module.exports = Text

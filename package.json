@@ -1,7 +1,7 @@
 {
   "name": "regl-text",
   "version": "1.0.0",
-  "description": "Render simple text with regl",
+  "description": "Render bitmap text in webgl",
   "main": "./index.js",
   "scripts": {
     "test": "budo --force-default-index test",
@@ -9,33 +9,31 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/dy/regl-text.git"
+    "url": "git+https://github.com/a-vis/gl-text.git"
   },
   "keywords": [
     "regl",
     "plotly",
     "text"
   ],
-  "browserify": {
-    "transform": [
-      "glslify"
-    ]
-  },
+  "browserify": {},
   "author": "Dmitry Yv <df.creative@gmail.com>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/dy/regl-text/issues"
+    "url": "https://github.com/a-vis/gl-text/issues"
   },
-  "homepage": "https://github.com/dy/regl-text#readme",
+  "homepage": "https://github.com/a-vis/gl-text#readme",
   "dependencies": {
     "color-normalize": "^1.0.3",
     "css-font": "^1.0.0",
     "es6-weak-map": "^2.0.2",
-    "gl-util": "^3.0.1",
+    "font-atlas": "^1.0.0",
+    "gl-util": "^3.0.3",
+    "object-assign": "^4.1.1",
     "pick-by-alias": "^1.2.0",
-    "regl": "^1.3.4"
+    "regl": "^1.3.6"
   },
   "devDependencies": {
-    "glslify": "^6.1.1"
+    "tape": "^4.9.0"
   }
 }
