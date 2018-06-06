@@ -30,14 +30,13 @@ class Text {
 			let draw = regl({
 				vert: `
 				precision mediump float;
-				attribute vec2 position;
 				varying vec2 uv;
-				uniform float width;
+				attribute float offset;
+				uniform float fontSize;
 				uniform vec4 viewport;
 				void main () {
-					uv = vec2(1. - position.s, position.t);
-
-					gl_Position = vec4(1.0 - 2.0 * position, 0, 1);
+					gl_PointSize = fontSize;
+					gl_Position = vec4(offset / 1000., 0, 0, 1);
 				}`,
 
 				frag: `
@@ -47,8 +46,9 @@ class Text {
 				varying vec2 uv;
 				void main () {
 					vec4 fontColor = color;
-					fontColor.a *= texture2D(texture, uv).g;
-					gl_FragColor = fontColor;
+					gl_FragColor = color;
+					// fontColor.a *= texture2D(texture, uv).g;
+					// gl_FragColor = fontColor;
 				}`,
 
 				blend: {
@@ -64,16 +64,17 @@ class Text {
 				},
 
 				attributes: {
-					position: [-2,0, 0,-2, 2,2],
-					char: regl.this('charBuffer')
+					char: regl.this('charBuffer'),
+					offset: regl.this('offsetBuffer')
 				},
 				uniforms: {
 					texture: regl.this('atlasTexture'),
 					viewport: regl.this('viewport'),
 					color: regl.this('color'),
-					width: regl.this('width')
+					fontSize: regl.this('fontSize')
 				},
-				count: 3
+				primitive: 'points',
+				count: regl.this('count')
 			})
 
 			// FIXME: in chrome font alpha depends on color seemingly to compensate constrast
@@ -88,7 +89,8 @@ class Text {
 		this.regl = shader.regl
 		this.atlasCache = shader.atlasCache
 
-		this.charBuffer = this.regl.buffer()
+		this.charBuffer = this.regl.buffer({type: 'uint8', usage: 'stream'})
+		this.offsetBuffer = this.regl.buffer({type: 'float', usage: 'stream'})
 
 		this.update(o)
 	}
@@ -127,26 +129,74 @@ class Text {
 		if (typeof o.font === 'string') o.font = Font.parse(o.font)
 		if (o.font) {
 			this.font = o.font
+
+			// update font atlas
+			let nfont = extend({}, o.font)
+			nfont.size = Text.atlasCacheFontSize
+			this.atlasFont = Font.stringify(nfont)
+
+			if (!this.atlasCache[this.atlasFont]) {
+				let atlas = fontAtlas({
+					font: this.atlasFont,
+					chars: [],
+					shape: [Text.atlasCacheWidth, Text.atlasCacheWidth],
+					step: [Text.atlasCacheFontSize * 2, Text.atlasCacheFontSize * 2]
+				})
+
+				this.atlasCache[this.atlasFont] = {
+					font: this.font,
+					canvas: atlas,
+					texture: this.regl.texture(),
+					widths: {},
+					ids: {},
+					chars: []
+				}
+			}
+
+			this.atlas = this.atlasCache[this.atlasFont]
+			this.atlasTexture = this.atlas.texture
+			this.fontSize = parseFloat(this.font.size || 16)
 		}
 
 		if (o.text) {
 			this.text = o.text
-		}
+			this.count = o.text.length
 
-		if (o.font || o.text) {
-			this.atlas = this.updateAtlas(this.font, this.text)
-			this.atlasTexture = this.atlas.texture
-		}
-
-		if (o.text) {
-			// regenerate text buffer
 			let atlas = this.atlas
-			let charIds = []
-			for (let i = 0; i < o.text.length; i++) {
-				let char = o.text.charAt(i)
+			let ctx = atlas.canvas.getContext('2d')
+			let newChars = 0
+			let charIds = new Uint8Array(this.count)
+			let offsets = new Float32Array(this.count)
+
+			// detect new characters and calculate offsets
+			for (let i = 0; i < this.count; i++) {
+				let char = this.text.charAt(i)
+
+				if (!atlas.ids[char]) {
+					atlas.ids[char] = atlas.chars.length
+					atlas.chars.push(char)
+					atlas.widths[char] = ctx.measureText(char).width
+
+					newChars++
+				}
+
 				charIds[i] = atlas.ids[char]
+				offsets[i] = !i ? 0 : (offsets[i - 1] + atlas.widths[char])
 			}
-			this.charBuffer(charIds)
+
+			this.charBuffer({data: charIds, type: 'uint8', usage: 'stream'})
+			this.offsetBuffer({data: offsets, type: 'float', usage: 'stream'})
+
+			// render new characters
+			if (newChars) {
+				atlas.canvas = fontAtlas({
+					font: this.atlasFont,
+					chars: atlas.chars,
+					shape: [Text.atlasCacheWidth, Text.atlasCacheWidth],
+					step: [Text.atlasCacheFontSize, Text.atlasCacheFontSize]
+				})
+				atlas.texture(atlas.canvas)
+			}
 		}
 
 		if (o.color) {
@@ -154,73 +204,11 @@ class Text {
 		}
 		if (!this.color) this.color = [0,0,0,1]
 	}
-
-	// make sure text characters are in font atlas
-	updateAtlas (font, text) {
-		let nfont = extend({}, font)
-		nfont.size = Text.atlasCacheFontSize
-		let nfontStr = Font.stringify(nfont)
-
-		if (!this.atlasCache[nfontStr]) {
-			let atlas = fontAtlas({
-				// hack to support correct fonts
-				// TODO: PR for https://github.com/hughsk/font-atlas/issues/1
-				size: nfontStr,
-				family: ' ',
-				chars: [],
-				shape: [Text.atlasCacheWidth, Text.atlasCacheWidth],
-				step: [Text.atlasCacheFontSize * 2, Text.atlasCacheFontSize * 2]
-			})
-
-			this.atlasCache[nfontStr] = {
-				font: font,
-				canvas: atlas,
-				texture: this.regl.texture(),
-				widths: {},
-				ids: {},
-				chars: []
-			}
-		}
-
-		let atlas = this.atlasCache[nfontStr]
-		let ctx = atlas.canvas.getContext('2d')
-
-		// extend characters
-		let newChars = 0
-		for (let i = 0; i < text.length; i++) {
-			let char = text.charAt(i)
-
-			if (!atlas.ids[char]) {
-				atlas.ids[char] = atlas.chars.length
-				atlas.chars.push(char)
-				atlas.widths[char] = ctx.measureText(char).width
-
-				newChars++
-			}
-		}
-
-		// render font atlas
-		if (newChars) {
-			atlas.canvas = fontAtlas({
-				// hack to support correct fonts
-				// TODO: PR for https://github.com/hughsk/font-atlas/issues/1
-				size: nfontStr,
-				family: ' ',
-				chars: atlas.chars,
-				shape: [Text.atlasCacheWidth, Text.atlasCacheWidth],
-				step: [Text.atlasCacheFontSize * 2, Text.atlasCacheFontSize * 2]
-			})
-			atlas.texture(atlas.canvas)
-		}
-
-		// document.body.appendChild(atlas.canvas)
-		return atlas
-	}
 }
 
 
 Text.atlasCacheWidth = 1024
-Text.atlasCacheFontSize = 64
+Text.atlasCacheFontSize = 128
 
 
 module.exports = Text

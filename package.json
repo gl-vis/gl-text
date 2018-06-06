@@ -27,7 +27,7 @@
     "color-normalize": "^1.0.3",
     "css-font": "^1.0.0",
     "es6-weak-map": "^2.0.2",
-    "font-atlas": "^1.0.0",
+    "font-atlas": "^2.0.0",
     "gl-util": "^3.0.3",
     "object-assign": "^4.1.1",
     "pick-by-alias": "^1.2.0",
