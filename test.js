@@ -13,7 +13,7 @@ t('simple case', t => {
 		align: 'left',
 		baseline: 'top',
 		color: 'blue',
-		font: {family: 'Roboto'},
+		font: {family: 'Roboto', size: 32},
 		text: 'Hello World!'
 	})
 	text.render()

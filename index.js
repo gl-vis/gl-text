@@ -31,12 +31,14 @@ class Text {
 			let draw = regl({
 				vert: `
 				precision mediump float;
-				attribute float offset;
-				uniform float fontSize;
+				attribute float width, offset, char;
+				uniform float fontSize, fontRatio;
 				uniform vec4 viewport;
 				varying vec2 charCoord;
+				varying float charId;
 				void main () {
-					charCoord = vec2(offset, 50);
+					charId = char;
+					charCoord = vec2(offset / 5., 50);
 
 					vec2 position = charCoord / viewport.zw;
 					gl_Position = vec4(position * 2. - 1., 0, 1);
@@ -49,12 +51,16 @@ class Text {
 				uniform sampler2D atlas;
 				uniform vec4 color, viewport;
 				uniform float fontSize, atlasFontSize;
-				uniform vec2 atlasSize;
+				uniform float atlasSize;
+				varying float charId;
 				varying vec2 charCoord;
 				void main () {
 					vec4 fontColor = color;
-					vec2 uv = (gl_FragCoord.xy - (charCoord - fontSize*.5)) / atlasFontSize;
-					fontColor.a *= texture2D(atlas, uv).g;
+					vec2 uv = gl_FragCoord.xy - charCoord + fontSize * .5;
+					uv.y = fontSize - uv.y;
+					uv = (uv / fontSize) * atlasFontSize / atlasSize;
+					uv.x += charId * atlasFontSize / atlasSize;
+					fontColor.a *= texture2D(atlas, uv).g + .1;
 					gl_FragColor = fontColor;
 				}`,
 
@@ -69,18 +75,30 @@ class Text {
 						dstAlpha: 'one'
 					}
 				},
+				stencil: {enable: false},
+				depth: {enable: false},
 
 				attributes: {
 					char: regl.this('charBuffer'),
-					offset: regl.this('offsetBuffer')
+					offset: {
+						offset: 4,
+						stride: 8,
+						buffer: regl.this('sizeBuffer')
+					},
+					width: {
+						offset: 0,
+						stride: 8,
+						buffer: regl.this('sizeBuffer')
+					}
 				},
 				uniforms: {
 					atlasSize: Text.atlasSize,
 					atlasFontSize: Text.atlasFontSize,
+					fontSize: regl.this('fontSize'),
+					fontRatio: regl.this('fontRatio'),
 					atlas: regl.this('atlasTexture'),
 					viewport: regl.this('viewportArray'),
 					color: regl.this('color'),
-					fontSize: regl.this('fontSize')
 				},
 				primitive: 'points',
 				count: regl.this('count'),
@@ -97,7 +115,7 @@ class Text {
 		this.atlasCache = shader.atlasCache
 
 		this.charBuffer = this.regl.buffer({type: 'uint8', usage: 'stream'})
-		this.offsetBuffer = this.regl.buffer({type: 'float', usage: 'stream'})
+		this.sizeBuffer = this.regl.buffer({type: 'float', usage: 'stream'})
 
 		this.update(o)
 	}
@@ -166,7 +184,8 @@ class Text {
 
 			this.atlas = this.atlasCache[this.atlasFont]
 			this.atlasTexture = this.atlas.texture
-			this.fontSize = parseFloat(this.font.size || 16)
+			this.fontSize = parseFloat(this.font.size || 24)
+			this.fontRatio = this.fontSize / Text.atlasFontSize
 		}
 
 		if (o.text) {
@@ -176,7 +195,7 @@ class Text {
 			let atlas = this.atlas
 			let newChars = 0
 			let charIds = pool.mallocUint8(this.count)
-			let offsets = pool.mallocFloat(this.count)
+			let sizeData = pool.mallocFloat(this.count * 2)
 
 			// detect new characters and calculate offsets
 			for (let i = 0; i < this.count; i++) {
@@ -191,13 +210,23 @@ class Text {
 				}
 
 				charIds[i] = atlas.ids[char]
-				offsets[i] = !i ? 0 : (offsets[i - 1] + atlas.widths[char])
+				// char width
+				sizeData[i * 2] = atlas.widths[char]
+
+				let offset = 0;
+				if (i) {
+					let prevWidth = sizeData[i * 2 - 2]
+					let currWidth = sizeData[i * 2]
+					let prevOffset = sizeData[i * 2 - 1]
+					offset = prevOffset + prevWidth * .5 + currWidth * .5;
+					sizeData[i * 2 + 1] = offset
+				}
 			}
 
 			this.charBuffer({data: charIds, type: 'uint8', usage: 'stream'})
-			this.offsetBuffer({data: offsets, type: 'float', usage: 'stream'})
+			this.sizeBuffer({data: sizeData, type: 'float', usage: 'stream'})
 			pool.freeUint8(charIds)
-			pool.freeFloat(offsets)
+			pool.freeFloat(sizeData)
 
 			// render new characters
 			if (newChars) {
@@ -207,7 +236,12 @@ class Text {
 					shape: [Text.atlasSize, Text.atlasSize],
 					step: [Text.atlasFontSize, Text.atlasFontSize]
 				})
-				atlas.texture(atlas.canvas)
+				atlas.texture({
+					min: 'linear',
+					mag: 'linear',
+					data: atlas.canvas,
+				})
+				// document.body.appendChild(atlas.canvas)
 			}
 		}
 
