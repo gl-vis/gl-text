@@ -11,6 +11,8 @@ let pool = require('typedarray-pool')
 let parseRect = require('parse-rect')
 let isPlainObj = require('is-plain-obj')
 let alru = require('array-lru')
+let parseUnit = require('parse-unit')
+let px = require('to-px')
 
 let cache = new WeakMap
 
@@ -38,7 +40,7 @@ class Text {
 				varying float charId;
 				void main () {
 					charId = char;
-					charCoord = vec2(offset * fontSize * .05, position.y);
+					charCoord = vec2(offset, position.y);
 
 					vec2 position = charCoord / viewport.zw;
 					gl_Position = vec4(position * 2. - 1., 0, 1);
@@ -58,9 +60,9 @@ class Text {
 					vec4 fontColor = color;
 					vec2 uv = gl_FragCoord.xy - charCoord + fontSize * .5;
 					uv.y = fontSize - uv.y;
+					uv.x += charId * fontSize;
 					uv /= atlasSize;
-					uv.x += charId * fontSize / atlasSize;
-					fontColor.a *= texture2D(atlas, uv).g;
+					fontColor.a *= texture2D(atlas, uv).g + .1;
 					gl_FragColor = fontColor;
 				}`,
 
@@ -104,10 +106,15 @@ class Text {
 				viewport: regl.this('viewport')
 			})
 
+			let atlasCanvas = document.createElement('canvas')
+			atlasCanvas.width = atlasCanvas.height = Text.atlasSize
+
 			shader = {
 				regl,
 				draw,
-				atlases: alru(Text.atlasCacheSize, {
+				atlasCanvas,
+				atlasContext: atlasCanvas.getContext('2d'),
+				atlasCache: alru(Text.atlasCacheSize, {
 					evict: (i, atlas) => {
 						atlas.canvas = null
 						atlas.context = null
@@ -116,14 +123,14 @@ class Text {
 				})
 			}
 
-			// TODO: it is possible to organize pool of font atlases cached by family/size and destroyed if number of instances is 0
-
 			cache.set(this.gl, shader)
 		}
 
 		this.render = shader.draw.bind(this)
 		this.regl = shader.regl
-		this.atlases = shader.atlases
+		this.atlasCache = shader.atlasCache
+		this.atlasCanvas = shader.atlasCanvas
+		this.atlasContext = shader.atlasContext
 
 		this.charBuffer = this.regl.buffer({type: 'uint8', usage: 'stream'})
 		this.sizeBuffer = this.regl.buffer({type: 'float', usage: 'stream'})
@@ -178,28 +185,23 @@ class Text {
 				this.font = o.font
 				this.fontString = Font.stringify(this.font)
 
-				// FIXME: detect units here
-				this.fontSize = parseFloat(this.font.size || 24)
+				// convert any unit to px
+				let unit = parseUnit(this.font.size)
+				this.fontSize = unit[0] * px(unit[1])
 
 				// obtain atlas or create one
-				this.atlas = this.atlases.get(this.fontString)
+				this.atlas = this.atlasCache.get(this.fontString)
 				if (!this.atlas) {
-					let atlasCanvas = fontAtlas({
-						font: this.fontString,
-						chars: [],
-						shape: [Text.atlasSize, Text.atlasSize]
-					})
 					this.atlas = {
 						font: this.font,
-						canvas: atlasCanvas,
-						context: atlasCanvas.getContext('2d'),
 						texture: this.regl.texture(),
 						widths: {},
 						ids: {},
-						chars: []
+						chars: [],
+						// kerning: kerning(this.font.family[0])
 					}
 
-					this.atlases.set(this.fontString, this.atlas)
+					this.atlasCache.set(this.fontString, this.atlas)
 				}
 				this.atlasTexture = this.atlas.texture
 			}
@@ -214,14 +216,17 @@ class Text {
 			let charIds = pool.mallocUint8(this.count)
 			let sizeData = pool.mallocFloat(this.count * 2)
 
+			this.atlasContext.font = this.fontString
+
 			// detect new characters and calculate offsets
 			for (let i = 0; i < this.count; i++) {
 				let char = this.text.charAt(i)
 
+				// calc new characters
 				if (atlas.ids[char] == null) {
 					atlas.ids[char] = atlas.chars.length
 					atlas.chars.push(char)
-					atlas.widths[char] = atlas.context.measureText(char).width
+					atlas.widths[char] = this.atlasContext.measureText(char).width
 
 					newChars++
 				}
@@ -249,16 +254,13 @@ class Text {
 			// render new characters
 			if (newChars || newFont) {
 				fontAtlas({
-					canvas: atlas.canvas,
+					canvas: this.atlasCanvas,
 					font: this.fontString,
 					chars: atlas.chars,
 					shape: [Text.atlasSize, Text.atlasSize],
 					step: [this.fontSize, this.fontSize]
 				})
-				atlas.texture({
-					data: atlas.canvas,
-				})
-				// document.body.appendChild(atlas.canvas)
+				atlas.texture(this.atlasCanvas)
 			}
 		}
 
@@ -273,8 +275,21 @@ class Text {
 // size of an atlas
 Text.atlasSize = 1024
 
-// max number of different font atlases cached
+// max number of different font atlasCache cached
 Text.atlasCacheSize = 32
+
+
+
+let kerningPairs = [
+'A”', 'W.', 'P,', 'L”', 'VA', 'F.', 'YA', 'Te', 'AV', 'Vr', 'PA', 'm”', 'a”', 'FA', 'UA', 'w.', 'Yt', 'LT', 'r,', 'Xv', 'Ku', 'D,', 'D”', 'OA', 'Hv', 'T:', 'DY', 'c”', 'my', 'Ru', 'aj', 'bv', 'Sp', 'ro', 'SR', 'lp', 'ot', 'tt', 'am', 'fe', 'vo', 'xc', 'yo', 'Ix', 'e,', 'st', 'he', 'Fw', 'us', 'Ak', 'la', 'Oj', 'il', 'CO', 'bc', 'Xf', 'fr', 'F”', 'wb', 'YW', 'So', 'Co', 'VT', 'cv', 'Dv', 'OC', 'Bc', 'RX', 'T”', 'gy', 'r:', 'XA', 'ry', 'w;', 'f?', 'f”'
+]
+let kerningCanvas = document.createElement('canvas')
+
+// take font-family and measure kerning offset for kerning pairs
+function detectKerning (font) {
+
+}
+
 
 
 module.exports = Text

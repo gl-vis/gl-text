@@ -31,7 +31,7 @@ t('case 2' , t => {
 		align: 'left',
 		baseline: 'top',
 		color: 'blue',
-		font: {family: 'sans-serif', size: 14},
+		font: {family: 'sans-serif', size: 34},
 		text: 'Hello asdhfkjqrewoi!',
 		position: [0, 50]
 	})
@@ -44,9 +44,9 @@ t('case 2' , t => {
 		align: 'left',
 		baseline: 'top',
 		color: 'blue',
-		font: {family: 'serif', size: 24},
+		font: {family: 'serif', size: 48},
 		text: 'Hello asdhfkjqrewoi!',
-		position: [0, 80]
+		position: [0, 100]
 	})
 
 	text.render()
