@@ -213,13 +213,15 @@ class Text {
 				// char width
 				sizeData[i * 2] = atlas.widths[char]
 
-				let offset = 0;
 				if (i) {
 					let prevWidth = sizeData[i * 2 - 2]
 					let currWidth = sizeData[i * 2]
 					let prevOffset = sizeData[i * 2 - 1]
-					offset = prevOffset + prevWidth * .5 + currWidth * .5;
+					let offset = prevOffset + prevWidth * .5 + currWidth * .5;
 					sizeData[i * 2 + 1] = offset
+				}
+				else {
+					sizeData[1] = sizeData[0] * .5
 				}
 			}
 

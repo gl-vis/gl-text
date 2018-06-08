@@ -2,6 +2,8 @@
 
 const t = require('tape')
 const Text = require('./')
+const ft = require('fourier-transform')
+
 
 document.body.style.background = 'white'
 document.body.style.height = '200px'
