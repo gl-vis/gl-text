@@ -10,6 +10,7 @@ let fontAtlas = require('font-atlas')
 let pool = require('typedarray-pool')
 let parseRect = require('parse-rect')
 let isPlainObj = require('is-plain-obj')
+let alru = require('array-lru')
 
 let cache = new WeakMap
 
@@ -59,7 +60,7 @@ class Text {
 					uv.y = fontSize - uv.y;
 					uv /= atlasSize;
 					uv.x += charId * fontSize / atlasSize;
-					fontColor.a *= texture2D(atlas, uv).g + .1;
+					fontColor.a *= texture2D(atlas, uv).g;
 					gl_FragColor = fontColor;
 				}`,
 
@@ -103,7 +104,17 @@ class Text {
 				viewport: regl.this('viewport')
 			})
 
-			shader = { regl, draw, atlases: {} }
+			shader = {
+				regl,
+				draw,
+				atlases: alru(Text.atlasCacheSize, {
+					evict: (i, atlas) => {
+						atlas.canvas = null
+						atlas.context = null
+						atlas.texture.destroy()
+					}
+				})
+			}
 
 			// TODO: it is possible to organize pool of font atlases cached by family/size and destroyed if number of instances is 0
 
@@ -132,6 +143,7 @@ class Text {
 			direction: 'dir direction textDirection',
 			color: 'color colour fill fill-color fillColor textColor textcolor',
 			viewport: 'vp viewport viewBox viewbox viewPort',
+			range: 'range dataBox',
 			opacity: 'opacity alpha transparency visible visibility opaque'
 		}, true)
 
@@ -170,15 +182,14 @@ class Text {
 				this.fontSize = parseFloat(this.font.size || 24)
 
 				// obtain atlas or create one
-				this.atlas = this.atlases[this.fontString]
+				this.atlas = this.atlases.get(this.fontString)
 				if (!this.atlas) {
 					let atlasCanvas = fontAtlas({
 						font: this.fontString,
 						chars: [],
 						shape: [Text.atlasSize, Text.atlasSize]
 					})
-					this.atlas =
-					this.atlases[this.fontString] = {
+					this.atlas = {
 						font: this.font,
 						canvas: atlasCanvas,
 						context: atlasCanvas.getContext('2d'),
@@ -187,6 +198,8 @@ class Text {
 						ids: {},
 						chars: []
 					}
+
+					this.atlases.set(this.fontString, this.atlas)
 				}
 				this.atlasTexture = this.atlas.texture
 			}
@@ -257,8 +270,11 @@ class Text {
 }
 
 
+// size of an atlas
 Text.atlasSize = 1024
-Text.atlasFontSize = 128
+
+// max number of different font atlases cached
+Text.atlasCacheSize = 32
 
 
 module.exports = Text

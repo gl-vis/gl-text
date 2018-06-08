@@ -24,6 +24,7 @@
   },
   "homepage": "https://github.com/a-vis/gl-text#readme",
   "dependencies": {
+    "array-lru": "^1.1.1",
     "color-normalize": "^1.0.3",
     "css-font": "^1.0.0",
     "es6-weak-map": "^2.0.2",
