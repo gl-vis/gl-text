@@ -30,6 +30,7 @@
     "font-atlas": "^2.0.0",
     "gl-util": "^3.0.3",
     "object-assign": "^4.1.1",
+    "parse-rect": "^1.2.0",
     "pick-by-alias": "^1.2.0",
     "regl": "^1.3.6",
     "typedarray-pool": "^1.1.0"

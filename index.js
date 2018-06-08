@@ -7,8 +7,8 @@ let createGl = require('gl-util/context')
 let WeakMap = require('es6-weak-map')
 let rgba = require('color-normalize')
 let fontAtlas = require('font-atlas')
-let extend = require('object-assign')
 let pool = require('typedarray-pool')
+let parseRect = require('parse-rect')
 
 let cache = new WeakMap
 
@@ -24,21 +24,18 @@ class Text {
 				gl: this.gl
 			})
 
-			// font atlas cache, per-font
-			let atlasCache = {}
-
 			// draw texture method
 			let draw = regl({
 				vert: `
 				precision mediump float;
 				attribute float width, offset, char;
-				uniform float fontSize, fontRatio;
+				uniform float fontSize;
 				uniform vec4 viewport;
 				varying vec2 charCoord;
 				varying float charId;
 				void main () {
 					charId = char;
-					charCoord = vec2(offset / 5., 50);
+					charCoord = vec2(offset * 7., 50);
 
 					vec2 position = charCoord / viewport.zw;
 					gl_Position = vec4(position * 2. - 1., 0, 1);
@@ -50,7 +47,7 @@ class Text {
 				precision mediump float;
 				uniform sampler2D atlas;
 				uniform vec4 color, viewport;
-				uniform float fontSize, atlasFontSize;
+				uniform float fontSize;
 				uniform float atlasSize;
 				varying float charId;
 				varying vec2 charCoord;
@@ -58,8 +55,8 @@ class Text {
 					vec4 fontColor = color;
 					vec2 uv = gl_FragCoord.xy - charCoord + fontSize * .5;
 					uv.y = fontSize - uv.y;
-					uv = (uv / fontSize) * atlasFontSize / atlasSize;
-					uv.x += charId * atlasFontSize / atlasSize;
+					uv /= atlasSize;
+					uv.x += charId * fontSize / atlasSize;
 					fontColor.a *= texture2D(atlas, uv).g + .1;
 					gl_FragColor = fontColor;
 				}`,
@@ -93,9 +90,7 @@ class Text {
 				},
 				uniforms: {
 					atlasSize: Text.atlasSize,
-					atlasFontSize: Text.atlasFontSize,
 					fontSize: regl.this('fontSize'),
-					fontRatio: regl.this('fontRatio'),
 					atlas: regl.this('atlasTexture'),
 					viewport: regl.this('viewportArray'),
 					color: regl.this('color'),
@@ -105,17 +100,31 @@ class Text {
 				viewport: regl.this('viewport')
 			})
 
-			shader = { regl, draw, atlasCache }
+			shader = { regl, draw }
 
 			cache.set(this.gl, shader)
 		}
 
 		this.render = shader.draw.bind(this)
 		this.regl = shader.regl
-		this.atlasCache = shader.atlasCache
 
 		this.charBuffer = this.regl.buffer({type: 'uint8', usage: 'stream'})
 		this.sizeBuffer = this.regl.buffer({type: 'float', usage: 'stream'})
+
+		let atlasCanvas = fontAtlas({
+			chars: [],
+			shape: [Text.atlasSize, Text.atlasSize]
+		})
+		this.atlas = {
+			font: this.font,
+			canvas: atlasCanvas,
+			context: atlasCanvas.getContext('2d'),
+			texture: this.regl.texture(),
+			widths: {},
+			ids: {},
+			chars: []
+		}
+		this.atlasTexture = this.atlas.texture
 
 		this.update(o)
 	}
@@ -154,38 +163,17 @@ class Text {
 		if (o.align) this.align = o.align
 
 		// normalize font caching string
+		let newFont = false
 		if (typeof o.font === 'string') o.font = Font.parse(o.font)
 		if (o.font) {
-			this.font = o.font
+			if (!this.font || Font.stringify(o.font) !== Font.stringify(this.font)) {
+				newFont = true
+				this.font = o.font
+				this.fontString = Font.stringify(this.font)
 
-			// update font atlas
-			let nfont = extend({}, o.font)
-			nfont.size = Text.atlasFontSize
-			this.atlasFont = Font.stringify(nfont)
-
-			if (!this.atlasCache[this.atlasFont]) {
-				let atlas = fontAtlas({
-					font: this.atlasFont,
-					chars: [],
-					shape: [Text.atlasSize, Text.atlasSize],
-					step: [Text.atlasFontSize, Text.atlasFontSize]
-				})
-
-				this.atlasCache[this.atlasFont] = {
-					font: this.font,
-					canvas: atlas,
-					context: atlas.getContext('2d'),
-					texture: this.regl.texture(),
-					widths: {},
-					ids: {},
-					chars: []
-				}
+				// FIXME: detect units here
+				this.fontSize = parseFloat(this.font.size || 24)
 			}
-
-			this.atlas = this.atlasCache[this.atlasFont]
-			this.atlasTexture = this.atlas.texture
-			this.fontSize = parseFloat(this.font.size || 24)
-			this.fontRatio = this.fontSize / Text.atlasFontSize
 		}
 
 		if (o.text) {
@@ -231,16 +219,17 @@ class Text {
 			pool.freeFloat(sizeData)
 
 			// render new characters
-			if (newChars) {
-				atlas.canvas = fontAtlas({
-					font: this.atlasFont,
+			if (newChars || newFont) {
+				fontAtlas({
+					canvas: atlas.canvas,
+					font: this.fontString,
 					chars: atlas.chars,
 					shape: [Text.atlasSize, Text.atlasSize],
-					step: [Text.atlasFontSize, Text.atlasFontSize]
+					step: [this.fontSize, this.fontSize]
 				})
 				atlas.texture({
-					min: 'linear',
-					mag: 'linear',
+					// min: 'linear',
+					// mag: 'linear',
 					data: atlas.canvas,
 				})
 				// document.body.appendChild(atlas.canvas)

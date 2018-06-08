@@ -2,7 +2,6 @@
 
 const t = require('tape')
 const Text = require('./')
-const ft = require('fourier-transform')
 
 
 document.body.style.background = 'white'
@@ -15,7 +14,7 @@ t('simple case', t => {
 		align: 'left',
 		baseline: 'top',
 		color: 'blue',
-		font: {family: 'Roboto', size: 32},
+		font: {family: 'Roboto', size: 64},
 		text: 'Hello World!'
 	})
 	text.render()
