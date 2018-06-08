@@ -9,6 +9,7 @@ let rgba = require('color-normalize')
 let fontAtlas = require('font-atlas')
 let pool = require('typedarray-pool')
 let parseRect = require('parse-rect')
+let isPlainObj = require('is-plain-obj')
 
 let cache = new WeakMap
 
@@ -31,11 +32,12 @@ class Text {
 				attribute float width, offset, char;
 				uniform float fontSize;
 				uniform vec4 viewport;
+				uniform vec2 position;
 				varying vec2 charCoord;
 				varying float charId;
 				void main () {
 					charId = char;
-					charCoord = vec2(offset * 7., 50);
+					charCoord = vec2(offset * fontSize * .05, position.y);
 
 					vec2 position = charCoord / viewport.zw;
 					gl_Position = vec4(position * 2. - 1., 0, 1);
@@ -89,6 +91,7 @@ class Text {
 					}
 				},
 				uniforms: {
+					position: regl.this('position'),
 					atlasSize: Text.atlasSize,
 					fontSize: regl.this('fontSize'),
 					atlas: regl.this('atlasTexture'),
@@ -100,33 +103,21 @@ class Text {
 				viewport: regl.this('viewport')
 			})
 
-			shader = { regl, draw }
+			shader = { regl, draw, atlases: {} }
+
+			// TODO: it is possible to organize pool of font atlases cached by family/size and destroyed if number of instances is 0
 
 			cache.set(this.gl, shader)
 		}
 
 		this.render = shader.draw.bind(this)
 		this.regl = shader.regl
+		this.atlases = shader.atlases
 
 		this.charBuffer = this.regl.buffer({type: 'uint8', usage: 'stream'})
 		this.sizeBuffer = this.regl.buffer({type: 'float', usage: 'stream'})
 
-		let atlasCanvas = fontAtlas({
-			chars: [],
-			shape: [Text.atlasSize, Text.atlasSize]
-		})
-		this.atlas = {
-			font: this.font,
-			canvas: atlasCanvas,
-			context: atlasCanvas.getContext('2d'),
-			texture: this.regl.texture(),
-			widths: {},
-			ids: {},
-			chars: []
-		}
-		this.atlasTexture = this.atlas.texture
-
-		this.update(o)
+		this.update(isPlainObj(o) ? o : {})
 	}
 
 	update (o) {
@@ -143,6 +134,8 @@ class Text {
 			viewport: 'vp viewport viewBox viewbox viewPort',
 			opacity: 'opacity alpha transparency visible visibility opaque'
 		}, true)
+
+		if (!this.text && !o.text) o.text = ''
 
 		if (o.opacity != null) this.opacity = parseFloat(o.opacity)
 		if (o.viewport != null) {
@@ -162,6 +155,8 @@ class Text {
 		if (o.direction) this.direction = o.direction
 		if (o.align) this.align = o.align
 
+		if (o.position) this.position = o.position
+
 		// normalize font caching string
 		let newFont = false
 		if (typeof o.font === 'string') o.font = Font.parse(o.font)
@@ -173,6 +168,27 @@ class Text {
 
 				// FIXME: detect units here
 				this.fontSize = parseFloat(this.font.size || 24)
+
+				// obtain atlas or create one
+				this.atlas = this.atlases[this.fontString]
+				if (!this.atlas) {
+					let atlasCanvas = fontAtlas({
+						font: this.fontString,
+						chars: [],
+						shape: [Text.atlasSize, Text.atlasSize]
+					})
+					this.atlas =
+					this.atlases[this.fontString] = {
+						font: this.font,
+						canvas: atlasCanvas,
+						context: atlasCanvas.getContext('2d'),
+						texture: this.regl.texture(),
+						widths: {},
+						ids: {},
+						chars: []
+					}
+				}
+				this.atlasTexture = this.atlas.texture
 			}
 		}
 
@@ -189,7 +205,7 @@ class Text {
 			for (let i = 0; i < this.count; i++) {
 				let char = this.text.charAt(i)
 
-				if (!atlas.ids[char]) {
+				if (atlas.ids[char] == null) {
 					atlas.ids[char] = atlas.chars.length
 					atlas.chars.push(char)
 					atlas.widths[char] = atlas.context.measureText(char).width
@@ -198,7 +214,6 @@ class Text {
 				}
 
 				charIds[i] = atlas.ids[char]
-				// char width
 				sizeData[i * 2] = atlas.widths[char]
 
 				if (i) {
@@ -228,8 +243,6 @@ class Text {
 					step: [this.fontSize, this.fontSize]
 				})
 				atlas.texture({
-					// min: 'linear',
-					// mag: 'linear',
 					data: atlas.canvas,
 				})
 				// document.body.appendChild(atlas.canvas)

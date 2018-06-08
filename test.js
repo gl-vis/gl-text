@@ -2,21 +2,40 @@
 
 const t = require('tape')
 const Text = require('./')
+const gl = require('gl-util/context')()
 
-
-document.body.style.background = 'white'
-document.body.style.height = '200px'
+document.body.style.margin = '0'
 
 t('simple case', t => {
-	var text = new Text()
+	var text = new Text(gl)
 
 	text.update({
 		align: 'left',
 		baseline: 'top',
 		color: 'blue',
-		font: {family: 'Roboto', size: 64},
-		text: 'Hello World!'
+		font: {family: 'serif', size: 24},
+		text: 'Hello World!',
+		position: [0, 10]
 	})
+
+	text.render()
+
+	t.end()
+})
+
+
+t('case 2' , t => {
+	var text = new Text(gl)
+
+	text.update({
+		align: 'left',
+		baseline: 'top',
+		color: 'blue',
+		font: {family: 'serif', size: 24},
+		text: 'Hello asdhfkjqrewoi!',
+		position: [0, 50]
+	})
+
 	text.render()
 
 	t.end()
