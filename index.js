@@ -13,6 +13,7 @@ let isPlainObj = require('is-plain-obj')
 let alru = require('array-lru')
 let parseUnit = require('parse-unit')
 let px = require('to-px')
+let kerning = require('detect-kerning')
 
 let cache = new WeakMap
 
@@ -37,7 +38,7 @@ class Text {
 				uniform vec4 viewport;
 				uniform vec2 position;
 				varying vec2 charCoord;
-				varying float charId;
+				varying float charId, charStep;
 				void main () {
 					charId = char;
 					charCoord = vec2(offset, position.y);
@@ -45,7 +46,8 @@ class Text {
 					vec2 position = charCoord / viewport.zw;
 					gl_Position = vec4(position * 2. - 1., 0, 1);
 
-					gl_PointSize = fontSize;
+					charStep = fontSize * ${Text.atlasStep.toPrecision(3)};
+					gl_PointSize = charStep;
 				}`,
 
 				frag: `
@@ -54,15 +56,15 @@ class Text {
 				uniform vec4 color, viewport;
 				uniform float fontSize;
 				uniform float atlasSize;
-				varying float charId;
+				varying float charId, charStep;
 				varying vec2 charCoord;
 				void main () {
 					vec4 fontColor = color;
-					vec2 uv = gl_FragCoord.xy - charCoord + fontSize * .5;
-					uv.y = fontSize - uv.y;
-					uv.x += charId * fontSize;
+					vec2 uv = gl_FragCoord.xy - charCoord + charStep * .5;
+					uv.y = charStep - uv.y;
+					uv.x += charId * charStep;
 					uv /= atlasSize;
-					fontColor.a *= texture2D(atlas, uv).g + .1;
+					fontColor.a *= texture2D(atlas, uv).g;
 					gl_FragColor = fontColor;
 				}`,
 
@@ -198,7 +200,7 @@ class Text {
 						widths: {},
 						ids: {},
 						chars: [],
-						// kerning: kerning(this.font.family[0])
+						kerning: kerning(this.font.family)
 					}
 
 					this.atlasCache.set(this.fontString, this.atlas)
@@ -221,6 +223,7 @@ class Text {
 			// detect new characters and calculate offsets
 			for (let i = 0; i < this.count; i++) {
 				let char = this.text.charAt(i)
+				let prevChar = this.text.charAt(i - 1)
 
 				// calc new characters
 				if (atlas.ids[char] == null) {
@@ -239,6 +242,12 @@ class Text {
 					let currWidth = sizeData[i * 2]
 					let prevOffset = sizeData[i * 2 - 1]
 					let offset = prevOffset + prevWidth * .5 + currWidth * .5;
+
+					let kerning = atlas.kerning[prevChar + char]
+					if (kerning) {
+						offset += this.fontSize * kerning * 1e-3
+					}
+
 					sizeData[i * 2 + 1] = offset
 				}
 				else {
@@ -258,7 +267,7 @@ class Text {
 					font: this.fontString,
 					chars: atlas.chars,
 					shape: [Text.atlasSize, Text.atlasSize],
-					step: [this.fontSize, this.fontSize]
+					step: [this.fontSize * Text.atlasStep, this.fontSize * Text.atlasStep]
 				})
 				atlas.texture(this.atlasCanvas)
 			}
@@ -275,20 +284,14 @@ class Text {
 // size of an atlas
 Text.atlasSize = 1024
 
+// fontSize / atlasStep multiplier
+Text.atlasStep = 1.2
+
 // max number of different font atlasCache cached
 Text.atlasCacheSize = 32
 
 
 
-let kerningPairs = [
-'A”', 'W.', 'P,', 'L”', 'VA', 'F.', 'YA', 'Te', 'AV', 'Vr', 'PA', 'm”', 'a”', 'FA', 'UA', 'w.', 'Yt', 'LT', 'r,', 'Xv', 'Ku', 'D,', 'D”', 'OA', 'Hv', 'T:', 'DY', 'c”', 'my', 'Ru', 'aj', 'bv', 'Sp', 'ro', 'SR', 'lp', 'ot', 'tt', 'am', 'fe', 'vo', 'xc', 'yo', 'Ix', 'e,', 'st', 'he', 'Fw', 'us', 'Ak', 'la', 'Oj', 'il', 'CO', 'bc', 'Xf', 'fr', 'F”', 'wb', 'YW', 'So', 'Co', 'VT', 'cv', 'Dv', 'OC', 'Bc', 'RX', 'T”', 'gy', 'r:', 'XA', 'ry', 'w;', 'f?', 'f”'
-]
-let kerningCanvas = document.createElement('canvas')
-
-// take font-family and measure kerning offset for kerning pairs
-function detectKerning (font) {
-
-}
 
 
 

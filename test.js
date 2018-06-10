@@ -44,8 +44,8 @@ t('case 2' , t => {
 		align: 'left',
 		baseline: 'top',
 		color: 'blue',
-		font: {family: 'serif', size: 48},
-		text: 'Hello asdhfkjqrewoi!',
+		font: {family: 'Minion Pro', size: 48},
+		text: 'Hello W.AVA!',
 		position: [0, 100]
 	})
 

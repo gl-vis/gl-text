@@ -27,6 +27,7 @@
     "array-lru": "^1.1.1",
     "color-normalize": "^1.0.3",
     "css-font": "^1.0.0",
+    "detect-kerning": "^2.1.1",
     "es6-weak-map": "^2.0.2",
     "font-atlas": "^2.0.0",
     "gl-util": "^3.0.4",
