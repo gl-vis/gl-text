@@ -26,11 +26,11 @@
   "dependencies": {
     "array-lru": "^1.1.1",
     "color-normalize": "^1.0.3",
-    "css-font": "^1.0.0",
+    "css-font": "^1.1.0",
     "detect-kerning": "^2.1.1",
     "es6-weak-map": "^2.0.2",
     "font-atlas": "^2.0.0",
-    "gl-util": "^3.0.4",
+    "gl-util": "^3.0.5",
     "is-plain-obj": "^1.1.0",
     "object-assign": "^4.1.1",
     "parse-rect": "^1.2.0",
@@ -41,7 +41,9 @@
     "typedarray-pool": "^1.1.0"
   },
   "devDependencies": {
+    "fps-indicator": "^1.2.1",
     "multi-regl": "^1.1.1",
+    "pan-zoom": "^2.3.2",
     "tape": "^4.9.0"
   }
 }

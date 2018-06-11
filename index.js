@@ -17,17 +17,8 @@ let kerning = require('detect-kerning')
 let extend = require('object-assign')
 
 
-// per gl context storage
-let shaderCache = new WeakMap
 
-// font atlas canvas is singleton
-let atlasCanvas, atlasContext
-
-// per font kerning storage
-let kerningCache = {}
-
-
-class Text {
+class GlText {
 	constructor (o) {
 		if (isRegl(o)) {
 			o = {regl: o}
@@ -37,7 +28,7 @@ class Text {
 			this.gl = createGl(o)
 		}
 
-		let shader = shaderCache.get(this.gl)
+		let shader = GlText.shaderCache.get(this.gl)
 
 		if (!shader) {
 			let regl = o.regl || createRegl({
@@ -56,12 +47,12 @@ class Text {
 				varying vec2 charCoord, charId;
 				varying float charStep;
 				void main () {
-					charCoord = vec2(offset, position.y);
+					charCoord = vec2(offset + position.x, position.y);
 
 					vec2 position = charCoord / viewport.zw;
 					gl_Position = vec4(position * 2. - 1., 0, 1);
 
-					charStep = fontSize * ${Text.atlasStep.toPrecision(3)};
+					charStep = fontSize * ${GlText.atlasStep.toPrecision(3)};
 					gl_PointSize = charStep;
 
 					float charsPerRow = floor(atlasSize / charStep);
@@ -116,7 +107,7 @@ class Text {
 				},
 				uniforms: {
 					position: regl.this('position'),
-					atlasSize: Text.atlasSize,
+					atlasSize: GlText.atlasSize,
 					fontSize: regl.this('fontSize'),
 					atlas: regl.this('atlasTexture'),
 					viewport: regl.this('viewportArray'),
@@ -128,23 +119,23 @@ class Text {
 			})
 
 			// create shared atlas canvas
-			if (!atlasCanvas) {
-				atlasCanvas = document.createElement('canvas')
-				atlasCanvas.width = atlasCanvas.height = Text.atlasSize
-				atlasContext = atlasCanvas.getContext('2d')
+			if (!GlText.atlasCanvas) {
+				GlText.atlasCanvas = document.createElement('canvas')
+				GlText.atlasCanvas.width = GlText.atlasCanvas.height = GlText.atlasSize
+				GlText.atlasContext = GlText.atlasCanvas.getContext('2d')
 			}
 
 			shader = {
 				regl,
 				draw,
-				atlasCache: alru(Text.atlasCacheSize, {
+				atlasCache: alru(GlText.atlasCacheSize, {
 					evict: (i, atlas) => {
 						atlas.texture.destroy()
 					}
 				})
 			}
 
-			shaderCache.set(this.gl, shader)
+			GlText.shaderCache.set(this.gl, shader)
 		}
 
 		this.render = shader.draw.bind(this)
@@ -200,6 +191,7 @@ class Text {
 
 		// normalize font caching string
 		let newFont = false
+
 		if (typeof o.font === 'string') o.font = Font.parse(o.font)
 		else if (o.font) o.font = Font.parse(Font.stringify(o.font))
 
@@ -224,7 +216,7 @@ class Text {
 						widths: {},
 						ids: {},
 						chars: [],
-						kerning: kerningCache[this.fontFamily] || (kerningCache[this.fontFamily] = {})
+						kerning: GlText.kerningCache[this.fontFamily] || (GlText.kerningCache[this.fontFamily] = {})
 					}
 
 					this.atlasCache.set(this.fontString, this.atlas)
@@ -239,9 +231,9 @@ class Text {
 
 			let atlas = this.atlas
 			let newChars = []
-			let kerningTable = kerningCache[this.fontFamily]
+			let kerningTable = GlText.kerningCache[this.fontFamily]
 
-			atlasContext.font = this.fontString
+			GlText.atlasContext.font = this.fontString
 
 			// detect new characters & measure their width
 			for (let i = 0; i < this.count; i++) {
@@ -250,7 +242,7 @@ class Text {
 				if (atlas.ids[char] == null) {
 					atlas.ids[char] = atlas.chars.length
 					atlas.chars.push(char)
-					atlas.widths[char] = atlasContext.measureText(char).width
+					atlas.widths[char] = GlText.atlasContext.measureText(char).width
 
 					newChars.push(char)
 				}
@@ -306,34 +298,52 @@ class Text {
 			// rerender characters texture
 			if (newChars.length || newFont) {
 				fontAtlas({
-					canvas: atlasCanvas,
+					canvas: GlText.atlasCanvas,
 					font: this.fontString,
 					chars: atlas.chars,
-					shape: [Text.atlasSize, Text.atlasSize],
-					step: [this.fontSize * Text.atlasStep, this.fontSize * Text.atlasStep]
+					shape: [GlText.atlasSize, GlText.atlasSize],
+					step: [this.fontSize * GlText.atlasStep, this.fontSize * GlText.atlasStep]
 				})
-				atlas.texture(atlasCanvas)
+				atlas.texture(GlText.atlasCanvas)
 			}
 		}
 
 		if (o.color) {
 			this.color = rgba(o.color)
 		}
-		if (!this.color) this.color = [0,0,0,1]
+	}
+
+	destroy () {
+		// TODO: count instances of atlases and destroy all on null
 	}
 }
 
-Text.prototype.kerning = true
+
+// defaults
+GlText.prototype.kerning = true
+GlText.prototype.color = [0, 0, 0, 1]
+GlText.prototype.position = [0, 0]
 
 
 // size of an atlas
-Text.atlasSize = 1024
+GlText.atlasSize = 1024
 
 // fontSize / atlasStep multiplier
-Text.atlasStep = 1.2
+GlText.atlasStep = 1.2
 
-// max number of different font atlasCache cached
-Text.atlasCacheSize = 32
+// max number of different font atlases/textures cached
+GlText.atlasCacheSize = 64
+
+
+// per gl context storage
+GlText.shaderCache = new WeakMap
+
+// font atlas canvas is singleton
+GlText.atlasCanvas = null
+GlText.atlasContext = null
+
+// per font kerning storage
+GlText.kerningCache = {}
 
 
 
@@ -346,4 +356,4 @@ function isRegl (o) {
 }
 
 
-module.exports = Text
+module.exports = GlText

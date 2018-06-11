@@ -1,6 +1,10 @@
-# gl-text
+# gl-text [![unstable](https://img.shields.io/badge/stability-unstable-green.svg)](http://github.com/badges/stability-badges)
 
 Render text in WebGL via [font-atlas](https://ghub.io/font-atlas).
+
+![gl-text](https://github.com/dy/gl-text/blob/master/preview.png?raw=true)
+
+[Demo](https://dy.github.io/gl-text).
 
 
 ## Usage
@@ -8,9 +12,12 @@ Render text in WebGL via [font-atlas](https://ghub.io/font-atlas).
 [![npm install gl-text](https://nodei.co/npm/gl-text.png?mini=true)](https://npmjs.org/package/gl-text/)
 
 ```js
-let Text = require('gl-text')()
+let Text = require('gl-text')
 
-Text({
+let text1 = new Text()
+
+// set state
+text1.update({
 	position: [x, y],
 	viewport: [],
 	text: 'ABC',
@@ -18,10 +25,18 @@ Text({
 	baseline: '',
 	direction: '',
 
-	font: 'Helvetica 16px/1.2',
-	font: {
-		family: ['Helvetica', 'sans-serif']
-	}
+	font: 'Helvetica 16px/1.2'
+})
+
+// render frame
+text1.render()
+
+
+let text2 = new Text(text1.gl)
+
+text2.update({
+	font: { family: ['Helvetica', 'Arial', 'sans-serif'], size: '1rem' },
+
 })
 ```
 
@@ -31,32 +46,35 @@ Text({
 
 Option | Meaning
 ---|---
-`regl` | Existing `regl` instance. By default [multi-regl](https://github.com) is created.
+`regl` | Existing `regl` instance. By default new one is created.
 `gl`, `context` | Existing WebGL context. By default new one is created.
-`canvas` |
-`container` |
+`canvas` | Existing `canvas` element.
+`container` | Existing `container` element. By default new canvas is created within the container.
 
-### `text.update(trace1, trace2, ...traces)`
+### `text.update(options)`
 
-Define passes for `draw` method. Every trace can include the following options:
+Set state of the `Text` instance.
 
 Option | Description
 ---|---
 `text` |
 `position` |
-`range` |
-`font` |
+`font` | CSS font string or object with font settings, see [css-font](https://ghub.com/css-font) package.
 `kerning` |
-`viewport` |
+`viewport` | Visible area within the canvas.
+`range` |
 `align` |
 `baseline` |
 `direction` |
+`letter-spacing` |
 
 ### `text.render()`
 
+Render frame with the text.
+
 ### `text.destroy()`
 
-Dispose renderer and all the associated resources.
+Dispose text renderer and all the associated resources.
 
 
 ## License
