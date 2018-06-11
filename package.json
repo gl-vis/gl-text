@@ -41,6 +41,7 @@
     "typedarray-pool": "^1.1.0"
   },
   "devDependencies": {
+    "multi-regl": "^1.1.1",
     "tape": "^4.9.0"
   }
 }

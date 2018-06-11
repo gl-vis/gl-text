@@ -17,15 +17,20 @@ let kerning = require('detect-kerning')
 
 let cache = new WeakMap
 
-
 class Text {
 	constructor (o) {
-		this.gl = createGl(o)
+		if (isRegl(o)) {
+			o = {regl: o}
+			this.gl = o.regl._gl
+		}
+		else {
+			this.gl = createGl(o)
+		}
 
 		let shader = cache.get(this.gl)
 
 		if (!shader) {
-			let regl = createRegl({
+			let regl = o.regl || createRegl({
 				gl: this.gl
 			})
 
@@ -292,7 +297,13 @@ Text.atlasCacheSize = 32
 
 
 
-
+function isRegl (o) {
+	return typeof o === 'function' &&
+	o._gl &&
+	o.prop &&
+	o.texture &&
+	o.buffer
+}
 
 
 module.exports = Text

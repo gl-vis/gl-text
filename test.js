@@ -2,12 +2,13 @@
 
 const t = require('tape')
 const Text = require('./')
-const gl = require('gl-util/context')()
+// const gl = require('gl-util/context')()
+const regl = require('regl')(document.body)
 
 document.body.style.margin = '0'
 
 t('simple case', t => {
-	var text = new Text(gl)
+	var text = new Text(regl)
 
 	text.update({
 		align: 'left',
@@ -25,7 +26,7 @@ t('simple case', t => {
 
 
 t('case 2' , t => {
-	var text = new Text(gl)
+	var text = new Text(regl)
 
 	text.update({
 		align: 'left',
@@ -38,7 +39,7 @@ t('case 2' , t => {
 
 	text.render()
 
-	var text = new Text(gl)
+	var text = new Text(regl)
 
 	text.update({
 		align: 'left',
