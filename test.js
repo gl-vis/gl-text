@@ -33,7 +33,7 @@ t('case 2' , t => {
 		baseline: 'top',
 		color: 'blue',
 		font: {family: 'sans-serif', size: 34},
-		text: 'Hello asdhfkjqrewoi!',
+		text: 'Hello abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!',
 		position: [0, 50]
 	})
 

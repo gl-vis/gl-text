@@ -52,10 +52,10 @@ class Text {
 				uniform float fontSize;
 				uniform vec4 viewport;
 				uniform vec2 position;
-				varying vec2 charCoord;
-				varying float charId, charStep;
+				uniform float atlasSize;
+				varying vec2 charCoord, charId;
+				varying float charStep;
 				void main () {
-					charId = char;
 					charCoord = vec2(offset, position.y);
 
 					vec2 position = charCoord / viewport.zw;
@@ -63,6 +63,10 @@ class Text {
 
 					charStep = fontSize * ${Text.atlasStep.toPrecision(3)};
 					gl_PointSize = charStep;
+
+					float charsPerRow = floor(atlasSize / charStep);
+					charId.x = mod(char, charsPerRow);
+					charId.y = floor(char / charsPerRow);
 				}`,
 
 				frag: `
@@ -71,13 +75,13 @@ class Text {
 				uniform vec4 color, viewport;
 				uniform float fontSize;
 				uniform float atlasSize;
-				varying float charId, charStep;
-				varying vec2 charCoord;
+				varying float charStep;
+				varying vec2 charCoord, charId;
 				void main () {
 					vec4 fontColor = color;
 					vec2 uv = gl_FragCoord.xy - charCoord + charStep * .5;
 					uv.y = charStep - uv.y;
-					uv.x += charId * charStep;
+					uv += charId * charStep;
 					uv /= atlasSize;
 					fontColor.a *= texture2D(atlas, uv).g;
 					gl_FragColor = fontColor;
@@ -209,7 +213,7 @@ class Text {
 				let unit = parseUnit(this.font.size)
 				this.fontSize = unit[0] * px(unit[1])
 
-				this.fontFamily = this.font.family.join(', ')
+				this.fontFamily = (this.font.family || ['sans-serif']).join(', ')
 
 				// obtain atlas or create one
 				this.atlas = this.atlasCache.get(this.fontString)
