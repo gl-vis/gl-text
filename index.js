@@ -14,8 +14,18 @@ let alru = require('array-lru')
 let parseUnit = require('parse-unit')
 let px = require('to-px')
 let kerning = require('detect-kerning')
+let extend = require('object-assign')
 
-let cache = new WeakMap
+
+// per gl context storage
+let shaderCache = new WeakMap
+
+// font atlas canvas is singleton
+let atlasCanvas, atlasContext
+
+// per font kerning storage
+let kerningCache = {}
+
 
 class Text {
 	constructor (o) {
@@ -27,7 +37,7 @@ class Text {
 			this.gl = createGl(o)
 		}
 
-		let shader = cache.get(this.gl)
+		let shader = shaderCache.get(this.gl)
 
 		if (!shader) {
 			let regl = o.regl || createRegl({
@@ -113,31 +123,29 @@ class Text {
 				viewport: regl.this('viewport')
 			})
 
-			let atlasCanvas = document.createElement('canvas')
-			atlasCanvas.width = atlasCanvas.height = Text.atlasSize
+			// create shared atlas canvas
+			if (!atlasCanvas) {
+				atlasCanvas = document.createElement('canvas')
+				atlasCanvas.width = atlasCanvas.height = Text.atlasSize
+				atlasContext = atlasCanvas.getContext('2d')
+			}
 
 			shader = {
 				regl,
 				draw,
-				atlasCanvas,
-				atlasContext: atlasCanvas.getContext('2d'),
 				atlasCache: alru(Text.atlasCacheSize, {
 					evict: (i, atlas) => {
-						atlas.canvas = null
-						atlas.context = null
 						atlas.texture.destroy()
 					}
 				})
 			}
 
-			cache.set(this.gl, shader)
+			shaderCache.set(this.gl, shader)
 		}
 
 		this.render = shader.draw.bind(this)
 		this.regl = shader.regl
 		this.atlasCache = shader.atlasCache
-		this.atlasCanvas = shader.atlasCanvas
-		this.atlasContext = shader.atlasContext
 
 		this.charBuffer = this.regl.buffer({type: 'uint8', usage: 'stream'})
 		this.sizeBuffer = this.regl.buffer({type: 'float', usage: 'stream'})
@@ -156,12 +164,13 @@ class Text {
 			baseline: 'baseline textBaseline textbaseline',
 			direction: 'dir direction textDirection',
 			color: 'color colour fill fill-color fillColor textColor textcolor',
+			kerning: 'kerning kern',
 			viewport: 'vp viewport viewBox viewbox viewPort',
 			range: 'range dataBox',
 			opacity: 'opacity alpha transparency visible visibility opaque'
 		}, true)
 
-		if (!this.text && !o.text) o.text = ''
+		if (this.text != null && o.text != null) o.text = ''
 
 		if (o.opacity != null) this.opacity = parseFloat(o.opacity)
 		if (o.viewport != null) {
@@ -177,6 +186,8 @@ class Text {
 			this.viewportArray = [this.viewport.x, this.viewport.y, this.viewport.width, this.viewport.height]
 		}
 
+		if (o.kerning != null) this.kerning = o.kerning
+
 		if (o.baseline) this.baseline = o.baseline
 		if (o.direction) this.direction = o.direction
 		if (o.align) this.align = o.align
@@ -186,6 +197,8 @@ class Text {
 		// normalize font caching string
 		let newFont = false
 		if (typeof o.font === 'string') o.font = Font.parse(o.font)
+		else if (o.font) o.font = Font.parse(Font.stringify(o.font))
+
 		if (o.font) {
 			if (!this.font || Font.stringify(o.font) !== Font.stringify(this.font)) {
 				newFont = true
@@ -196,6 +209,8 @@ class Text {
 				let unit = parseUnit(this.font.size)
 				this.fontSize = unit[0] * px(unit[1])
 
+				this.fontFamily = this.font.family.join(', ')
+
 				// obtain atlas or create one
 				this.atlas = this.atlasCache.get(this.fontString)
 				if (!this.atlas) {
@@ -205,7 +220,7 @@ class Text {
 						widths: {},
 						ids: {},
 						chars: [],
-						kerning: kerning(this.font.family)
+						kerning: kerningCache[this.fontFamily] || (kerningCache[this.fontFamily] = {})
 					}
 
 					this.atlasCache.set(this.fontString, this.atlas)
@@ -219,25 +234,42 @@ class Text {
 			this.count = o.text.length
 
 			let atlas = this.atlas
-			let newChars = 0
-			let charIds = pool.mallocUint8(this.count)
-			let sizeData = pool.mallocFloat(this.count * 2)
+			let newChars = []
+			let kerningTable = kerningCache[this.fontFamily]
 
-			this.atlasContext.font = this.fontString
+			atlasContext.font = this.fontString
 
-			// detect new characters and calculate offsets
+			// detect new characters & measure their width
 			for (let i = 0; i < this.count; i++) {
 				let char = this.text.charAt(i)
-				let prevChar = this.text.charAt(i - 1)
 
-				// calc new characters
 				if (atlas.ids[char] == null) {
 					atlas.ids[char] = atlas.chars.length
 					atlas.chars.push(char)
-					atlas.widths[char] = this.atlasContext.measureText(char).width
+					atlas.widths[char] = atlasContext.measureText(char).width
 
-					newChars++
+					newChars.push(char)
 				}
+			}
+
+			// calculate kerning if enabled
+			if (this.kerning && newChars.length) {
+				let pairs = []
+				for (let i = 0; i < newChars.length; i++) {
+					for (let char in atlas.ids) {
+						pairs.push(newChars[i] + char)
+						if (char != newChars[i]) pairs.push(char + newChars[i])
+					}
+				}
+				extend(kerningTable, kerning(this.fontFamily, pairs))
+			}
+
+			// populate text/offset buffers
+			let charIds = pool.mallocUint8(this.count)
+			let sizeData = pool.mallocFloat(this.count * 2)
+			for (let i = 0; i < this.count; i++) {
+				let char = this.text.charAt(i)
+				let prevChar = this.text.charAt(i - 1)
 
 				charIds[i] = atlas.ids[char]
 				sizeData[i * 2] = atlas.widths[char]
@@ -248,9 +280,11 @@ class Text {
 					let prevOffset = sizeData[i * 2 - 1]
 					let offset = prevOffset + prevWidth * .5 + currWidth * .5;
 
-					let kerning = atlas.kerning[prevChar + char]
-					if (kerning) {
-						offset += this.fontSize * kerning * 1e-3
+					if (this.kerning) {
+						let kern = kerningTable[prevChar + char]
+						if (kern) {
+							offset += this.fontSize * kern * 1e-3
+						}
 					}
 
 					sizeData[i * 2 + 1] = offset
@@ -265,16 +299,16 @@ class Text {
 			pool.freeUint8(charIds)
 			pool.freeFloat(sizeData)
 
-			// render new characters
-			if (newChars || newFont) {
+			// rerender characters texture
+			if (newChars.length || newFont) {
 				fontAtlas({
-					canvas: this.atlasCanvas,
+					canvas: atlasCanvas,
 					font: this.fontString,
 					chars: atlas.chars,
 					shape: [Text.atlasSize, Text.atlasSize],
 					step: [this.fontSize * Text.atlasStep, this.fontSize * Text.atlasStep]
 				})
-				atlas.texture(this.atlasCanvas)
+				atlas.texture(atlasCanvas)
 			}
 		}
 
@@ -284,6 +318,8 @@ class Text {
 		if (!this.color) this.color = [0,0,0,1]
 	}
 }
+
+Text.prototype.kerning = true
 
 
 // size of an atlas
