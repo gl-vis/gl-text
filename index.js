@@ -70,10 +70,10 @@ class GlText {
 				varying vec2 charCoord, charId;
 				void main () {
 					vec4 fontColor = color;
-					vec2 uv = floor(gl_FragCoord.xy - charCoord) + charStep * .5;
+					vec2 uv = gl_FragCoord.xy - charCoord + charStep * .5;
 					uv.y = charStep - uv.y;
 					uv += charId * charStep;
-					uv /= atlasSize;
+					uv = floor(uv) / atlasSize;
 					fontColor.a *= texture2D(atlas, uv).g;
 					gl_FragColor = fontColor;
 				}`,
