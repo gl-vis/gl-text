@@ -43,7 +43,7 @@ class GlText {
 				uniform float fontSize;
 				uniform vec4 viewport;
 				uniform vec2 position;
-				uniform float atlasSize;
+				uniform vec2 atlasSize;
 				varying vec2 charCoord, charId;
 				varying float charStep;
 				void main () {
@@ -55,7 +55,7 @@ class GlText {
 					charStep = fontSize * ${GlText.atlasStep.toPrecision(3)};
 					gl_PointSize = charStep;
 
-					float charsPerRow = floor(atlasSize / charStep);
+					float charsPerRow = floor(atlasSize.x / charStep);
 					charId.x = mod(char, charsPerRow);
 					charId.y = floor(char / charsPerRow);
 				}`,
@@ -65,7 +65,7 @@ class GlText {
 				uniform sampler2D atlas;
 				uniform vec4 color, viewport;
 				uniform float fontSize;
-				uniform float atlasSize;
+				uniform vec2 atlasSize;
 				varying float charStep;
 				varying vec2 charCoord, charId;
 				void main () {
@@ -107,7 +107,7 @@ class GlText {
 				},
 				uniforms: {
 					position: regl.this('position'),
-					atlasSize: GlText.atlasSize,
+					atlasSize: regl.this('atlasSize'),
 					fontSize: regl.this('fontSize'),
 					atlas: regl.this('atlasTexture'),
 					viewport: regl.this('viewportArray'),
@@ -117,13 +117,6 @@ class GlText {
 				count: regl.this('count'),
 				viewport: regl.this('viewport')
 			})
-
-			// create shared atlas canvas
-			if (!GlText.atlasCanvas) {
-				GlText.atlasCanvas = document.createElement('canvas')
-				GlText.atlasCanvas.width = GlText.atlasCanvas.height = GlText.atlasSize
-				GlText.atlasContext = GlText.atlasCanvas.getContext('2d')
-			}
 
 			shader = {
 				regl,
@@ -297,13 +290,19 @@ class GlText {
 
 			// rerender characters texture
 			if (newChars.length || newFont) {
+				let step = this.fontSize * GlText.atlasStep
+				this.atlasSize = [
+					Math.min(step * atlas.chars.length, GlText.maxAtlasSize),
+					step * Math.ceil((step * atlas.chars.length) / GlText.maxAtlasSize)
+				]
 				fontAtlas({
 					canvas: GlText.atlasCanvas,
 					font: this.fontString,
 					chars: atlas.chars,
-					shape: [GlText.atlasSize, GlText.atlasSize],
-					step: [this.fontSize * GlText.atlasStep, this.fontSize * GlText.atlasStep]
+					shape: this.atlasSize,
+					step: [step, step]
 				})
+				// document.body.appendChild(GlText.atlasCanvas)
 				atlas.texture(GlText.atlasCanvas)
 			}
 		}
@@ -326,7 +325,7 @@ GlText.prototype.position = [0, 0]
 
 
 // size of an atlas
-GlText.atlasSize = 1024
+GlText.maxAtlasSize = 1024
 
 // fontSize / atlasStep multiplier
 GlText.atlasStep = 1.2
@@ -339,8 +338,8 @@ GlText.atlasCacheSize = 64
 GlText.shaderCache = new WeakMap
 
 // font atlas canvas is singleton
-GlText.atlasCanvas = null
-GlText.atlasContext = null
+GlText.atlasCanvas = document.createElement('canvas')
+GlText.atlasContext = GlText.atlasCanvas.getContext('2d')
 
 // per font kerning storage
 GlText.kerningCache = {}
