@@ -10,12 +10,10 @@ let fontAtlas = require('font-atlas')
 let pool = require('typedarray-pool')
 let parseRect = require('parse-rect')
 let isPlainObj = require('is-plain-obj')
-let alru = require('array-lru')
 let parseUnit = require('parse-unit')
 let px = require('to-px')
 let kerning = require('detect-kerning')
 let extend = require('object-assign')
-
 
 
 class GlText {
@@ -107,7 +105,9 @@ class GlText {
 				},
 				uniforms: {
 					position: regl.this('position'),
-					atlasSize: regl.this('atlasSize'),
+					atlasSize: function (c, p) {
+						return [this.atlasTexture.width, this.atlasTexture.height]
+					},
 					fontSize: regl.this('fontSize'),
 					atlas: regl.this('atlasTexture'),
 					viewport: regl.this('viewportArray'),
@@ -121,11 +121,7 @@ class GlText {
 			shader = {
 				regl,
 				draw,
-				atlasCache: alru(GlText.atlasCacheSize, {
-					evict: (i, atlas) => {
-						atlas.texture.destroy()
-					}
-				})
+				atlasCache: {}
 			}
 
 			GlText.shaderCache.set(this.gl, shader)
@@ -133,6 +129,7 @@ class GlText {
 
 		this.render = shader.draw.bind(this)
 		this.regl = shader.regl
+		this.canvas = this.gl.canvas
 		this.atlasCache = shader.atlasCache
 
 		this.charBuffer = this.regl.buffer({type: 'uint8', usage: 'stream'})
@@ -201,7 +198,7 @@ class GlText {
 				this.fontFamily = (this.font.family || ['sans-serif']).join(', ')
 
 				// obtain atlas or create one
-				this.atlas = this.atlasCache.get(this.fontString)
+				this.atlas = this.atlasCache[this.fontString]
 				if (!this.atlas) {
 					this.atlas = {
 						font: this.font,
@@ -212,7 +209,7 @@ class GlText {
 						kerning: GlText.kerningCache[this.fontFamily] || (GlText.kerningCache[this.fontFamily] = {})
 					}
 
-					this.atlasCache.set(this.fontString, this.atlas)
+					this.atlasCache[this.fontString] = this.atlas
 				}
 				this.atlasTexture = this.atlas.texture
 			}
@@ -291,15 +288,15 @@ class GlText {
 			// rerender characters texture
 			if (newChars.length || newFont) {
 				let step = this.fontSize * GlText.atlasStep
-				this.atlasSize = [
-					Math.min(step * atlas.chars.length, GlText.maxAtlasSize),
-					step * Math.ceil((step * atlas.chars.length) / GlText.maxAtlasSize)
+				let atlasSize = [
+					Math.ceil(Math.min(step * atlas.chars.length, GlText.maxAtlasSize)),
+					Math.ceil(step * Math.ceil((step * atlas.chars.length) / GlText.maxAtlasSize))
 				]
 				fontAtlas({
 					canvas: GlText.atlasCanvas,
 					font: this.fontString,
 					chars: atlas.chars,
-					shape: this.atlasSize,
+					shape: atlasSize,
 					step: [step, step]
 				})
 				// document.body.appendChild(GlText.atlasCanvas)

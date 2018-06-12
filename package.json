@@ -24,9 +24,8 @@
   },
   "homepage": "https://github.com/a-vis/gl-text#readme",
   "dependencies": {
-    "array-lru": "^1.1.1",
     "color-normalize": "^1.0.3",
-    "css-font": "^1.1.0",
+    "css-font": "^1.1.1",
     "detect-kerning": "^2.1.1",
     "es6-weak-map": "^2.0.2",
     "font-atlas": "^2.0.0",
@@ -43,7 +42,8 @@
   "devDependencies": {
     "fps-indicator": "^1.2.1",
     "multi-regl": "^1.1.1",
-    "pan-zoom": "^2.3.2",
+    "pan-zoom": "^3.1.0",
+    "raf": "^3.4.0",
     "tape": "^4.9.0"
   }
 }
