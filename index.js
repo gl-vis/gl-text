@@ -69,7 +69,7 @@ class GlText {
 					uv.y = charStep - uv.y;
 					uv += charId * charStep;
 					uv = uv / atlasSize;
-					fontColor.a *= texture2D(atlas, uv).r * texture2D(atlas, uv).g * texture2D(atlas, uv).b;
+					fontColor.a *= texture2D(atlas, uv).g;
 					gl_FragColor = fontColor;
 				}`,
 
@@ -315,8 +315,6 @@ class GlText {
 
 				// document.body.appendChild(GlText.atlasCanvas)
 				atlas.texture({
-					mag: 'linear',
-					min: 'linear',
 					data: GlText.atlasCanvas
 				})
 			}
