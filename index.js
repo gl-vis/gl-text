@@ -38,19 +38,17 @@ class GlText {
 				vert: `
 				precision mediump float;
 				attribute float width, offset, char;
-				uniform float fontSize;
+				uniform float fontSize, charStep;
 				uniform vec4 viewport;
-				uniform vec2 position;
-				uniform vec2 atlasSize;
+				uniform vec2 position, atlasSize, scale, translate;
 				varying vec2 charCoord, charId;
-				varying float charStep;
 				void main () {
-					charCoord = vec2(offset + position.x, position.y);
+					vec2 offset = vec2(offset / (viewport.z * scale.x), 0);
+					vec2 position = (position + offset + translate) * scale;
 
-					vec2 position = charCoord / viewport.zw;
+					charCoord = position * viewport.zw;
 					gl_Position = vec4(position * 2. - 1., 0, 1);
 
-					charStep = fontSize * ${GlText.atlasStep.toPrecision(3)};
 					gl_PointSize = charStep;
 
 					float charsPerRow = floor(atlasSize.x / charStep);
@@ -62,17 +60,16 @@ class GlText {
 				precision mediump float;
 				uniform sampler2D atlas;
 				uniform vec4 color, viewport;
-				uniform float fontSize;
+				uniform float fontSize, charStep;
 				uniform vec2 atlasSize;
-				varying float charStep;
 				varying vec2 charCoord, charId;
 				void main () {
 					vec4 fontColor = color;
 					vec2 uv = gl_FragCoord.xy - charCoord + charStep * .5;
 					uv.y = charStep - uv.y;
 					uv += charId * charStep;
-					uv = floor(uv) / atlasSize;
-					fontColor.a *= texture2D(atlas, uv).g;
+					uv = uv / atlasSize;
+					fontColor.a *= texture2D(atlas, uv).r * texture2D(atlas, uv).g * texture2D(atlas, uv).b;
 					gl_FragColor = fontColor;
 				}`,
 
@@ -112,6 +109,9 @@ class GlText {
 					atlas: regl.this('atlasTexture'),
 					viewport: regl.this('viewportArray'),
 					color: regl.this('color'),
+					scale: regl.this('scale'),
+					translate: regl.this('translate'),
+					charStep: regl.this('charStep')
 				},
 				primitive: 'points',
 				count: regl.this('count'),
@@ -178,6 +178,17 @@ class GlText {
 		if (o.align) this.align = o.align
 
 		if (o.position) this.position = o.position
+
+		if (!o.scale && !o.range) {
+			// o.range = [0, 0, 1, 1]
+			o.range = this.viewportArray
+		}
+		if (o.range) {
+			this.scale = [1 / (o.range[2] - o.range[0]), 1 / (o.range[3] - o.range[1])]
+			this.translate = [-o.range[0], -o.range[1]]
+		}
+		if (o.scale) this.scale = o.scale
+		if (o.translate) this.translate = o.translate
 
 		// normalize font caching string
 		let newFont = false
@@ -287,7 +298,9 @@ class GlText {
 
 			// rerender characters texture
 			if (newChars.length || newFont) {
-				let step = this.fontSize * GlText.atlasStep
+				let step = Math.ceil(this.fontSize * GlText.atlasStep)
+				this.charStep = step
+
 				let atlasSize = [
 					Math.ceil(Math.min(step * atlas.chars.length, GlText.maxAtlasSize)),
 					Math.ceil(step * Math.ceil((step * atlas.chars.length) / GlText.maxAtlasSize))
@@ -299,8 +312,13 @@ class GlText {
 					shape: atlasSize,
 					step: [step, step]
 				})
+
 				// document.body.appendChild(GlText.atlasCanvas)
-				atlas.texture(GlText.atlasCanvas)
+				atlas.texture({
+					mag: 'linear',
+					min: 'linear',
+					data: GlText.atlasCanvas
+				})
 			}
 		}
 
@@ -319,6 +337,7 @@ class GlText {
 GlText.prototype.kerning = true
 GlText.prototype.color = [0, 0, 0, 1]
 GlText.prototype.position = [0, 0]
+GlText.prototype.translate = [0, 0]
 
 
 // size of an atlas

@@ -115,13 +115,15 @@ t.skip('Augment chars', t => {
 
 
 
-
-q.forEach(text => text.render())
+q.render = function (opts) {
+	if (opts) q.forEach(text => text.update(opts))
+	q.forEach(text => text.render())
+}
 
 setTimeout(() => {
-	q.forEach(text => text.render())
+	q.render()
 
-	let range = q[0].range
+	let range = [0, 0, q[0].canvas.width, q[0].canvas.height]
 
 	panzoom(q[0].canvas, e => {
 		let canvas = e.target
