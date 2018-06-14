@@ -14,17 +14,8 @@ let parseUnit = require('parse-unit')
 let px = require('to-px')
 let kerning = require('detect-kerning')
 let extend = require('object-assign')
-let metrics = require('fontmetrics')
+let fontMetrics = require('fontmetrics')
 
-
-console.time(1)
-metrics({
-	fontFamily: 'Roboto',
-	fontWeight: 'normal',
-	fontSize: 48,
-	origin: 'baseline'
-})
-console.timeEnd(1)
 
 class GlText {
 	constructor (o) {
@@ -39,9 +30,7 @@ class GlText {
 		let shader = GlText.shaderCache.get(this.gl)
 
 		if (!shader) {
-			let regl = o.regl || createRegl({
-				gl: this.gl
-			})
+			let regl = o.regl || createRegl({ gl: this.gl })
 
 			// draw texture method
 			let draw = regl({
@@ -121,26 +110,26 @@ class GlText {
 				uniforms: {
 					position: regl.this('position'),
 					atlasSize: function (c, p) {
-						return [this.atlasTexture.width, this.atlasTexture.height]
+						let texture = this.fontAtlas.texture
+						return [texture.width, texture.height]
 					},
 					fontSize: regl.this('fontSize'),
-					atlas: regl.this('atlasTexture'),
+					atlas: function () { return this.fontAtlas.texture },
 					viewport: regl.this('viewportArray'),
 					color: regl.this('color'),
 					scale: regl.this('scale'),
 					translate: regl.this('translate'),
-					charStep: regl.this('charStep')
+					charStep: function () { return this.fontAtlas.step }
 				},
 				primitive: 'points',
 				count: regl.this('count'),
 				viewport: regl.this('viewport')
 			})
 
-			shader = {
-				regl,
-				draw,
-				atlasCache: {}
-			}
+			// per font-size atlas
+			let atlas = {}
+
+			shader = { regl, draw, atlas }
 
 			GlText.shaderCache.set(this.gl, shader)
 		}
@@ -148,20 +137,23 @@ class GlText {
 		this.render = shader.draw.bind(this)
 		this.regl = shader.regl
 		this.canvas = this.gl.canvas
-		this.atlasCache = shader.atlasCache
+		this.shader = shader
 
 		this.charBuffer = this.regl.buffer({type: 'uint8', usage: 'stream'})
 		this.sizeBuffer = this.regl.buffer({type: 'float', usage: 'stream'})
 
-		this.update(isPlainObj(o) ? o : {})
+		this.update(isPlainObj(o) ? o : {
+			font: '16px sans-serif'
+		})
 	}
 
 	update (o) {
 		if (typeof o === 'string') o = { text: o }
-		else if (!o) o = {}
+		else if (!o) return
 
 		o = pick(o, {
 			font: 'font fontFace fontface typeface cssFont css-font',
+			fontSize: 'fontSize fontsize size font-size',
 			text: 'text value symbols',
 			align: 'align alignment textAlign textbaseline',
 			baseline: 'baseline textBaseline textbaseline',
@@ -172,8 +164,6 @@ class GlText {
 			range: 'range dataBox',
 			opacity: 'opacity alpha transparency visible visibility opaque'
 		}, true)
-
-		if (this.text != null && o.text != null) o.text = ''
 
 		if (o.opacity != null) this.opacity = parseFloat(o.opacity)
 		if (o.viewport != null) {
@@ -216,75 +206,135 @@ class GlText {
 		if (o.translate) this.translate = o.translate
 
 		// normalize font caching string
-		let newFont = false
+		let newFont = false, newFontSize = false
 
-		if (!this.font && !o.font) o.font = '16px sans-serif'
-
+		// normalize font
 		if (typeof o.font === 'string') o.font = Font.parse(o.font)
 		else if (o.font) o.font = Font.parse(Font.stringify(o.font))
 
+		// obtain new font data
 		if (o.font) {
-			if (!this.font || Font.stringify(o.font) !== Font.stringify(this.font)) {
+			let family = o.font.family.join(', ')
+
+			let unit = parseUnit(o.font.size)
+			let fs = Math.round(unit[0] * px(unit[1]))
+			if (fs !== this.fontSize) {
+				newFontSize = true
+				this.fontSize = fs
+			}
+
+			// calc new font metrics/atlas
+			if (!this.font || family != this.font.family) {
 				newFont = true
-				this.font = o.font
-				this.fontString = Font.stringify(this.font)
 
-				// convert any unit to px
-				let unit = parseUnit(this.font.size)
-				this.fontSize = unit[0] * px(unit[1])
+				// obtain font cache or create one
+				this.font = GlText.fonts[family]
+				if (!this.font) {
+					this.font = {
+						// typeface
+						family: o.font.family,
+						weight: o.font.weight,
+						stretch: o.font.stretch,
+						style: o.font.style,
+						variant: o.font.variant,
 
-				this.fontFamily = (this.font.family || ['sans-serif']).join(', ')
+						// widths of characters
+						width: {},
 
-				// obtain atlas or create one
-				this.atlas = this.atlasCache[this.fontString]
-				if (!this.atlas) {
-					this.atlas = {
-						font: this.font,
-						texture: this.regl.texture(),
-						widths: {},
-						ids: {},
-						chars: [],
-						kerning: GlText.kerningCache[this.fontFamily] || (GlText.kerningCache[this.fontFamily] = {})
+						// kernin pairs offsets
+						kerning: {},
+
+						metrics: fontMetrics({
+							fontFamily: family,
+							fontSize: GlText.baseFontSize,
+							fontWeight: `${o.font.style} ${o.font.variant} ${o.font.weight} ${o.font.stretch}`
+						})
 					}
 
-					this.atlasCache[this.fontString] = this.atlas
+					this.font.baseString = Font.stringify({
+						size: GlText.baseFontSize,
+						family: this.font.family,
+						size: this.font.size,
+						stretch: this.font.stretch,
+						variant: this.font.variant,
+						weight: this.font.weight,
+						style: this.font.style
+					})
+
+					GlText.fonts[family] = this.font
 				}
-				this.atlasTexture = this.atlas.texture
 			}
 		}
 
-		if (o.text) {
-			this.text = o.text
-			this.count = o.text.length
+		if (o.fontSize) {
+			let unit = parseUnit(o.fontSize)
+			let fs = Math.round(unit[0] * px(unit[1]))
 
-			let atlas = this.atlas
-			let newChars = []
-			let kerningTable = GlText.kerningCache[this.fontFamily]
-			GlText.atlasContext.font = this.fontString
+			if (fs != this.fontSize) {
+				newFontSize = true
+				this.fontSize = fs
+			}
+		}
 
-			// detect new characters & measure their width
-			for (let i = 0; i < this.count; i++) {
-				let char = this.text.charAt(i)
+		if (newFont || newFontSize) {
+			this.fontString = Font.stringify({
+				size: this.fontSize,
+				family: this.font.family,
+				size: this.font.size,
+				stretch: this.font.stretch,
+				variant: this.font.variant,
+				weight: this.font.weight,
+				style: this.font.style
+			})
 
-				if (atlas.ids[char] == null) {
-					atlas.ids[char] = atlas.chars.length
-					atlas.chars.push(char)
-					atlas.widths[char] = GlText.atlasContext.measureText(char).width
-
-					newChars.push(char)
+			// calc new font size atlas
+			this.fontAtlas = this.shader.atlas[this.fontString]
+			if (!this.fontAtlas) {
+				this.shader.atlas[this.fontString] =
+				this.fontAtlas = {
+					em: this.fontSize / GlText.baseFontSize,
+					chars: [],
+					ids: {},
+					step: Math.ceil(this.fontSize * GlText.atlasStep),
+					texture: this.regl.texture()
 				}
 			}
 
-			// calculate kerning if enabled
-			if (this.kerning && newChars.length) {
-				let pairs = []
-				for (let i = 0; i < newChars.length; i++) {
-					for (let char in atlas.ids) {
-						pairs.push(newChars[i] + char)
-						if (char != newChars[i]) pairs.push(char + newChars[i])
+			// bump atlas characters
+			if (o.text == null) o.text = this.text
+		}
+
+		// calculate offsets for the new font/text
+		if (o.text != null || newFont) {
+			// FIXME: ignore spaces
+			this.text = o.text
+			this.count = o.text.length
+
+			let newAtlasChars = []
+
+			// detect & measure new characters
+			GlText.atlasContext.font = this.font.baseString
+			for (let i = 0; i < this.text.length; i++) {
+				let char = this.text.charAt(i)
+
+				if (this.fontAtlas.ids[char] == null) {
+					this.fontAtlas.ids[char] = this.fontAtlas.chars.length
+					this.fontAtlas.chars.push(char)
+					newAtlasChars.push(char)
+				}
+
+				if (this.font.width[char] == null) {
+					this.font.width[char] = GlText.atlasContext.measureText(char).width
+
+					// measure kerning pairs for the new character
+					if (this.kerning) {
+						let pairs = []
+						for (let baseChar in this.font.width) {
+							pairs.push(baseChar + char, char + baseChar)
+						}
+						extend(this.font.kerning, kerning(this.font.family, pairs))
 					}
 				}
-				extend(kerningTable, kerning(this.fontFamily, pairs))
 			}
 
 			// populate text/offset buffers
@@ -294,8 +344,8 @@ class GlText {
 				let char = this.text.charAt(i)
 				let prevChar = this.text.charAt(i - 1)
 
-				charIds[i] = atlas.ids[char]
-				sizeData[i * 2] = atlas.widths[char]
+				charIds[i] = this.fontAtlas.ids[char]
+				sizeData[i * 2] = this.font.width[char] * this.fontAtlas.em
 
 				if (i) {
 					let prevWidth = sizeData[i * 2 - 2]
@@ -304,9 +354,9 @@ class GlText {
 					let offset = prevOffset + prevWidth * .5 + currWidth * .5;
 
 					if (this.kerning) {
-						let kern = kerningTable[prevChar + char]
-						if (kern) {
-							offset += this.fontSize * kern * 1e-3
+						let kerningEm = this.font.kerning[prevChar + char]
+						if (kerningEm) {
+							offset += this.fontSize * kerningEm * 1e-3
 						}
 					}
 
@@ -322,30 +372,31 @@ class GlText {
 			pool.freeUint8(charIds)
 			pool.freeFloat(sizeData)
 
-			// rerender characters texture
-			if (newChars.length || newFont) {
-				let step = Math.ceil(this.fontSize * GlText.atlasStep)
-				this.charStep = step
+			// udpate font atlas and texture
+			if (newAtlasChars.length) {
+				// FIXME: insert metrics-based ratio here
+				let step = this.fontAtlas.step
 
 				let atlasSize = [
-					Math.ceil(Math.min(step * atlas.chars.length, GlText.maxAtlasSize)),
-					Math.ceil(step * Math.ceil((step * atlas.chars.length) / GlText.maxAtlasSize))
+					Math.ceil(Math.min(step * this.fontAtlas.chars.length, GlText.maxAtlasSize)),
+					Math.ceil(step * Math.ceil((step * this.fontAtlas.chars.length) / GlText.maxAtlasSize))
 				]
 				fontAtlas({
 					canvas: GlText.atlasCanvas,
 					font: this.fontString,
-					chars: atlas.chars,
+					chars: this.fontAtlas.chars,
 					shape: atlasSize,
 					step: [step, step]
 				})
 
 				// document.body.appendChild(GlText.atlasCanvas)
-				atlas.texture({
+				this.fontAtlas.texture({
 					data: GlText.atlasCanvas
 				})
 			}
 		}
 
+		// FIXME: mb add multiple colors?
 		if (o.color) {
 			this.color = rgba(o.color)
 		}
@@ -364,28 +415,32 @@ GlText.prototype.position = [0, 0]
 GlText.prototype.translate = [0, 0]
 GlText.prototype.scale = null
 GlText.prototype.invertViewport = true
+GlText.prototype.text = ''
 
 
 // size of an atlas
 GlText.maxAtlasSize = 1024
 
-// fontSize / atlasStep multiplier
-GlText.atlasStep = 1.2
-
-// max number of different font atlases/textures cached
-GlText.atlasCacheSize = 64
-
-
-// per gl context storage
+// per gl-context storage
 GlText.shaderCache = new WeakMap
 
 // font atlas canvas is singleton
 GlText.atlasCanvas = document.createElement('canvas')
 GlText.atlasContext = GlText.atlasCanvas.getContext('2d', {alpha: false})
 
-// per font kerning storage
-GlText.kerningCache = {}
+// font-size used for metrics, atlas step calculation
+GlText.baseFontSize = 32
 
+// fontSize / atlasStep multiplier
+// FIXME: figure that out from line-height
+GlText.atlasStep = 1.2
+
+// fonts storage
+GlText.fonts = {}
+
+// max number of different font atlases/textures cached
+// FIXME: enable atlas size limitation via LRU
+// GlText.atlasCacheSize = 64
 
 
 function isRegl (o) {

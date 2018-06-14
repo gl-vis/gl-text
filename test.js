@@ -53,7 +53,7 @@ t('font', t => {
 	t.end()
 })
 
-t.only('alignment', t => {
+t('alignment', t => {
 	let canvas = document.body.appendChild(
 		document.createElement('canvas')
 	)
@@ -64,13 +64,6 @@ t.only('alignment', t => {
 	canvas.height = window.innerHeight
 	let ctx = canvas.getContext('2d')
 
-	// example
-	ctx.fillStyle = 'white'
-	ctx.fillRect(400,280,450,50)
-	ctx.font = '24px Times New Roman'
-	ctx.fillStyle = '#000'
-	ctx.fillText('Quick Brown Fox Jumps over the Lazy Dog', 400, 300)
-
 	// +
 	ctx.fillStyle = 'black'
 	ctx.fillRect(400 - 25, 400, 50, 1)
@@ -78,7 +71,7 @@ t.only('alignment', t => {
 
 	q.push(new Text({
 		gl,
-		color: '#000',
+		color: 'blue',
 		font: '24px Times New Roman',
 		position: [400, 400],
 		text: 'Quick Brown Fox Jumps over the Lazy Dog'
@@ -170,14 +163,14 @@ setTimeout(() => {
 			range[0] -= rx * xrange * dz
 			range[2] += (1 - rx) * xrange * dz
 
-			range[1] -= (1 - ry) * yrange * dz
-			range[3] += ry * yrange * dz
+			range[1] -= ry * yrange * dz
+			range[3] += (1 - ry) * yrange * dz
 		}
 
 		range[0] -= xrange * e.dx / w
 		range[2] -= xrange * e.dx / w
-		range[1] += yrange * e.dy / h
-		range[3] += yrange * e.dy / h
+		range[1] -= yrange * e.dy / h
+		range[3] -= yrange * e.dy / h
 
 		q.render({ range })
 	})
