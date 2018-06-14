@@ -69,10 +69,12 @@ t('alignment', t => {
 	ctx.fillRect(400 - 25, 400, 50, 1)
 	ctx.fillRect(400, 400 - 25, 1, 50)
 
+	//
 	q.push(new Text({
 		gl,
+		align: 'left',
 		color: 'blue',
-		font: '48px Times New Roman',
+		font: '32px Times New Roman',
 		position: [400, 400],
 		text: 'Quick Brown Fox Jumps over the Lazy Dog'
 	}))

@@ -120,7 +120,20 @@ class GlText {
 					viewport: regl.this('viewportArray'),
 					color: regl.this('color'),
 					scale: regl.this('scale'),
-					translate: regl.this('translate'),
+					translate: function () {
+						let t = this.translate.slice()
+						switch (this.align) {
+							case 'right':
+							case 'end':
+								t[0] -= this.textWidth
+								break;
+							case 'center':
+							case 'middle':
+								t[0] -= this.textWidth * .5
+						}
+
+						return t
+					},
 					charStep: function () { return this.fontAtlas.step }
 				},
 				primitive: 'points',
@@ -344,6 +357,7 @@ class GlText {
 			}
 
 			// populate text/offset buffers
+			// as [charWidth, offset, charWidth, offset...]
 			let charIds = pool.mallocUint8(this.count)
 			let sizeData = pool.mallocFloat(this.count * 2)
 			for (let i = 0; i < this.count; i++) {
@@ -372,6 +386,7 @@ class GlText {
 					sizeData[1] = sizeData[0] * .5
 				}
 			}
+			this.textWidth = (sizeData[sizeData.length - 2] * .5 + sizeData[sizeData.length - 1]) * this.fontAtlas.em
 
 			this.charBuffer({data: charIds, type: 'uint8', usage: 'stream'})
 			this.sizeBuffer({data: sizeData, type: 'float', usage: 'stream'})
@@ -395,16 +410,14 @@ class GlText {
 				this.fontAtlas.rows = rows
 				this.fontAtlas.cols = cols
 
-				fontAtlas({
-					canvas: GlText.atlasCanvas,
-					font: this.fontString,
-					chars: this.fontAtlas.chars,
-					shape: [atlasWidth, atlasHeight],
-					step: [step, step]
-				})
-
 				this.fontAtlas.texture({
-					data: GlText.atlasCanvas
+					data: fontAtlas({
+						canvas: GlText.atlasCanvas,
+						font: this.fontString,
+						chars: this.fontAtlas.chars,
+						shape: [atlasWidth, atlasHeight],
+						step: [step, step]
+					})
 				})
 			}
 		}
