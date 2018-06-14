@@ -6,7 +6,7 @@ let pick = require('pick-by-alias')
 let createGl = require('gl-util/context')
 let WeakMap = require('es6-weak-map')
 let rgba = require('color-normalize')
-let fontAtlas = require('font-atlas')
+let fontAtlas = require('../font-atlas')
 let pool = require('typedarray-pool')
 let parseRect = require('parse-rect')
 let isPlainObj = require('is-plain-obj')
@@ -14,7 +14,17 @@ let parseUnit = require('parse-unit')
 let px = require('to-px')
 let kerning = require('detect-kerning')
 let extend = require('object-assign')
+let metrics = require('fontmetrics')
 
+
+console.time(1)
+metrics({
+	fontFamily: 'Roboto',
+	fontWeight: 'normal',
+	fontSize: 48,
+	origin: 'baseline'
+})
+console.timeEnd(1)
 
 class GlText {
 	constructor (o) {
@@ -46,6 +56,9 @@ class GlText {
 					vec2 offset = vec2(offset / (viewport.z * scale.x), 0);
 					vec2 position = (position + offset + translate) * scale;
 
+					// invert position
+					position.y = 1. - position.y;
+
 					charCoord = position * viewport.zw;
 					gl_Position = vec4(position * 2. - 1., 0, 1);
 
@@ -69,7 +82,12 @@ class GlText {
 					uv.y = charStep - uv.y;
 					uv += charId * charStep;
 					uv = uv / atlasSize;
-					fontColor.a *= texture2D(atlas, uv).g;
+					vec4 mask = texture2D(atlas, uv);
+
+					// antialiasing, see yiq color space y-channel formula
+					fontColor.a *= (mask.r * 0.299) + (mask.g * 0.587) + (mask.b * 0.114);
+					fontColor.rgb += (1. - fontColor.rgb) * (1. - mask.rgb);
+
 					gl_FragColor = fontColor;
 				}`,
 
@@ -160,7 +178,14 @@ class GlText {
 		if (o.opacity != null) this.opacity = parseFloat(o.opacity)
 		if (o.viewport != null) {
 			this.viewport = parseRect(o.viewport)
+
+			// invert viewport
+			// if (this.invertViewport) {
+			// 	this.viewport.y = this.canvas.height - this.viewport.y - this.viewport.height
+			// }
+
 			this.viewportArray = [this.viewport.x, this.viewport.y, this.viewport.width, this.viewport.height]
+
 		}
 		if (this.viewport == null) {
 			this.viewport = {
@@ -192,6 +217,8 @@ class GlText {
 
 		// normalize font caching string
 		let newFont = false
+
+		if (!this.font && !o.font) o.font = '16px sans-serif'
 
 		if (typeof o.font === 'string') o.font = Font.parse(o.font)
 		else if (o.font) o.font = Font.parse(Font.stringify(o.font))
@@ -233,7 +260,6 @@ class GlText {
 			let atlas = this.atlas
 			let newChars = []
 			let kerningTable = GlText.kerningCache[this.fontFamily]
-
 			GlText.atlasContext.font = this.fontString
 
 			// detect new characters & measure their width
@@ -336,6 +362,8 @@ GlText.prototype.kerning = true
 GlText.prototype.color = [0, 0, 0, 1]
 GlText.prototype.position = [0, 0]
 GlText.prototype.translate = [0, 0]
+GlText.prototype.scale = null
+GlText.prototype.invertViewport = true
 
 
 // size of an atlas
@@ -353,7 +381,7 @@ GlText.shaderCache = new WeakMap
 
 // font atlas canvas is singleton
 GlText.atlasCanvas = document.createElement('canvas')
-GlText.atlasContext = GlText.atlasCanvas.getContext('2d')
+GlText.atlasContext = GlText.atlasCanvas.getContext('2d', {alpha: false})
 
 // per font kerning storage
 GlText.kerningCache = {}

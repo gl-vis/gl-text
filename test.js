@@ -53,8 +53,36 @@ t('font', t => {
 	t.end()
 })
 
-t('alignment', t => {
+t.only('alignment', t => {
+	let canvas = document.body.appendChild(
+		document.createElement('canvas')
+	)
+	canvas.style.position = 'absolute'
+	canvas.style.left = 0
+	canvas.style.top = 0
+	canvas.width = window.innerWidth
+	canvas.height = window.innerHeight
+	let ctx = canvas.getContext('2d')
 
+	// example
+	ctx.fillStyle = 'white'
+	ctx.fillRect(400,280,450,50)
+	ctx.font = '24px Times New Roman'
+	ctx.fillStyle = '#000'
+	ctx.fillText('Quick Brown Fox Jumps over the Lazy Dog', 400, 300)
+
+	// +
+	ctx.fillStyle = 'black'
+	ctx.fillRect(400 - 25, 400, 50, 1)
+	ctx.fillRect(400, 400 - 25, 1, 50)
+
+	q.push(new Text({
+		gl,
+		color: '#000',
+		font: '24px Times New Roman',
+		position: [400, 400],
+		text: 'Quick Brown Fox Jumps over the Lazy Dog'
+	}))
 	t.end()
 })
 
@@ -123,10 +151,10 @@ q.render = function (opts) {
 setTimeout(() => {
 	q.render()
 
-	let range = [0, 0, q[0].canvas.width, q[0].canvas.height]
+	let range = [0, 0, gl.canvas.width, gl.canvas.height]
 
-	panzoom(q[0].canvas, e => {
-		let canvas = e.target
+	panzoom(document.body, e => {
+		let canvas = gl.canvas
 
 		let w = canvas.offsetWidth
 		let h = canvas.offsetHeight

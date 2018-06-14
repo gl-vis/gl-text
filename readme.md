@@ -2,6 +2,10 @@
 
 Render text in WebGL via [font-atlas](https://ghub.io/font-atlas).
 
+* Performance
+* Atlas caching
+* Antialiasing
+
 ![gl-text](https://github.com/dy/gl-text/blob/master/preview.png?raw=true)
 
 [Demo](https://dy.github.io/gl-text).
