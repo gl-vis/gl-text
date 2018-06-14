@@ -37,12 +37,12 @@ class GlText {
 				vert: `
 				precision mediump float;
 				attribute float width, offset, char;
-				uniform float fontSize, charStep;
+				uniform float fontSize, charStep, em;
 				uniform vec4 viewport;
-				uniform vec2 position, atlasSize, scale, translate;
+				uniform vec2 position, atlasSize, atlasDim, scale, translate;
 				varying vec2 charCoord, charId;
 				void main () {
-					vec2 offset = vec2(offset / (viewport.z * scale.x), 0);
+					vec2 offset = vec2(em * offset / (viewport.z * scale.x), 0);
 					vec2 position = (position + offset + translate) * scale;
 
 					// invert position
@@ -53,9 +53,8 @@ class GlText {
 
 					gl_PointSize = charStep;
 
-					float charsPerRow = floor(atlasSize.x / charStep);
-					charId.x = mod(char, charsPerRow);
-					charId.y = floor(char / charsPerRow);
+					charId.x = mod(char, atlasDim.x);
+					charId.y = floor(char / atlasDim.x);
 				}`,
 
 				frag: `
@@ -110,10 +109,13 @@ class GlText {
 				uniforms: {
 					position: regl.this('position'),
 					atlasSize: function (c, p) {
-						let texture = this.fontAtlas.texture
-						return [texture.width, texture.height]
+						return [this.fontAtlas.width, this.fontAtlas.height]
+					},
+					atlasDim: function () {
+						return [this.fontAtlas.cols, this.fontAtlas.rows]
 					},
 					fontSize: regl.this('fontSize'),
+					em: function () { return this.fontAtlas.em },
 					atlas: function () { return this.fontAtlas.texture },
 					viewport: regl.this('viewportArray'),
 					color: regl.this('color'),
@@ -139,8 +141,8 @@ class GlText {
 		this.canvas = this.gl.canvas
 		this.shader = shader
 
-		this.charBuffer = this.regl.buffer({type: 'uint8', usage: 'stream'})
-		this.sizeBuffer = this.regl.buffer({type: 'float', usage: 'stream'})
+		this.charBuffer = this.regl.buffer({ type: 'uint8', usage: 'stream' })
+		this.sizeBuffer = this.regl.buffer({ type: 'float', usage: 'stream' })
 
 		this.update(isPlainObj(o) ? o : {
 			font: '16px sans-serif'
@@ -214,7 +216,14 @@ class GlText {
 
 		// obtain new font data
 		if (o.font) {
-			let family = o.font.family.join(', ')
+			let baseString = Font.stringify({
+				size: GlText.baseFontSize,
+				family: o.font.family,
+				stretch: o.font.stretch,
+				variant: o.font.variant,
+				weight: o.font.weight,
+				style: o.font.style
+			})
 
 			let unit = parseUnit(o.font.size)
 			let fs = Math.round(unit[0] * px(unit[1]))
@@ -224,15 +233,18 @@ class GlText {
 			}
 
 			// calc new font metrics/atlas
-			if (!this.font || family != this.font.family) {
+			if (!this.font || baseString != this.font.baseString) {
 				newFont = true
 
 				// obtain font cache or create one
-				this.font = GlText.fonts[family]
+				this.font = GlText.fonts[baseString]
 				if (!this.font) {
+					let family = o.font.family.join(', ')
 					this.font = {
+						baseString,
+
 						// typeface
-						family: o.font.family,
+						family,
 						weight: o.font.weight,
 						stretch: o.font.stretch,
 						style: o.font.style,
@@ -251,17 +263,7 @@ class GlText {
 						})
 					}
 
-					this.font.baseString = Font.stringify({
-						size: GlText.baseFontSize,
-						family: this.font.family,
-						size: this.font.size,
-						stretch: this.font.stretch,
-						variant: this.font.variant,
-						weight: this.font.weight,
-						style: this.font.style
-					})
-
-					GlText.fonts[family] = this.font
+					GlText.fonts[baseString] = this.font
 				}
 			}
 		}
@@ -280,7 +282,6 @@ class GlText {
 			this.fontString = Font.stringify({
 				size: this.fontSize,
 				family: this.font.family,
-				size: this.font.size,
 				stretch: this.font.stretch,
 				variant: this.font.variant,
 				weight: this.font.weight,
@@ -292,10 +293,14 @@ class GlText {
 			if (!this.fontAtlas) {
 				this.shader.atlas[this.fontString] =
 				this.fontAtlas = {
+					step: Math.ceil(this.fontSize * GlText.atlasStep),
 					em: this.fontSize / GlText.baseFontSize,
+					cols: 0,
+					rows: 0,
+					height: 0,
+					width: 0,
 					chars: [],
 					ids: {},
-					step: Math.ceil(this.fontSize * GlText.atlasStep),
 					texture: this.regl.texture()
 				}
 			}
@@ -314,6 +319,7 @@ class GlText {
 
 			// detect & measure new characters
 			GlText.atlasContext.font = this.font.baseString
+
 			for (let i = 0; i < this.text.length; i++) {
 				let char = this.text.charAt(i)
 
@@ -345,7 +351,7 @@ class GlText {
 				let prevChar = this.text.charAt(i - 1)
 
 				charIds[i] = this.fontAtlas.ids[char]
-				sizeData[i * 2] = this.font.width[char] * this.fontAtlas.em
+				sizeData[i * 2] = this.font.width[char]
 
 				if (i) {
 					let prevWidth = sizeData[i * 2 - 2]
@@ -377,19 +383,26 @@ class GlText {
 				// FIXME: insert metrics-based ratio here
 				let step = this.fontAtlas.step
 
-				let atlasSize = [
-					Math.ceil(Math.min(step * this.fontAtlas.chars.length, GlText.maxAtlasSize)),
-					Math.ceil(step * Math.ceil((step * this.fontAtlas.chars.length) / GlText.maxAtlasSize))
-				]
+				let maxCols = Math.floor(GlText.maxAtlasSize / step)
+				let cols = Math.min(maxCols, this.fontAtlas.chars.length)
+				let rows = Math.ceil(this.fontAtlas.chars.length / cols)
+
+				let atlasWidth = cols * step
+				let atlasHeight = rows * step
+
+				this.fontAtlas.width = atlasWidth
+				this.fontAtlas.height = atlasHeight
+				this.fontAtlas.rows = rows
+				this.fontAtlas.cols = cols
+
 				fontAtlas({
 					canvas: GlText.atlasCanvas,
 					font: this.fontString,
 					chars: this.fontAtlas.chars,
-					shape: atlasSize,
+					shape: [atlasWidth, atlasHeight],
 					step: [step, step]
 				})
 
-				// document.body.appendChild(GlText.atlasCanvas)
 				this.fontAtlas.texture({
 					data: GlText.atlasCanvas
 				})

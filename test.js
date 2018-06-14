@@ -72,7 +72,7 @@ t('alignment', t => {
 	q.push(new Text({
 		gl,
 		color: 'blue',
-		font: '24px Times New Roman',
+		font: '48px Times New Roman',
 		position: [400, 400],
 		text: 'Quick Brown Fox Jumps over the Lazy Dog'
 	}))

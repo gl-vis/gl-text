@@ -1,7 +1,7 @@
 {
   "name": "regl-text",
   "version": "1.0.0",
-  "description": "Render bitmap text in webgl",
+  "description": "Render text in WebGL",
   "main": "./index.js",
   "scripts": {
     "test": "budo --force-default-index test",
@@ -29,7 +29,6 @@
     "detect-kerning": "^2.1.1",
     "es6-weak-map": "^2.0.2",
     "font-atlas": "^2.0.0",
-    "font-baseline": "^1.0.0",
     "fontmetrics": "^1.0.0",
     "gl-util": "^3.0.5",
     "is-plain-obj": "^1.1.0",
