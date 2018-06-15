@@ -72,7 +72,10 @@ class GlText {
 					vec2 uv = gl_FragCoord.xy - charCoord + charCenter;
 					uv.y = charStep - uv.y;
 
-					if (uv.x > charCenter + charWidth * .5 || uv.x < charCenter - charWidth * .5) return;
+					// ignore points outside of character bounding box
+					float halfWidth = charWidth * .5;
+					if (uv.x > charCenter + halfWidth ||
+						uv.x < charCenter - halfWidth) return;
 
 					uv += charId * charStep;
 					uv = uv / atlasSize;
