@@ -13,7 +13,7 @@ const panzoom = require('pan-zoom')
 let q = []
 
 
-t.only('font', t => {
+t('font', t => {
 	let matrix = []
 
 	let family = ['Roboto', 'sans-serif']
@@ -27,9 +27,8 @@ t.only('font', t => {
 			let stretch = stretches[j]
 			let normal = new Text(gl)
 			normal.update({
-				viewport: [50,50,500,500],
 				font: { family, weight, stretch },
-				position: [j * 40, i*20 - 80],
+				position: [j * 40, i*20],
 				text: weight
 			})
 
@@ -42,9 +41,8 @@ t.only('font', t => {
 			let stretch = stretches[j]
 			let italic = new Text(gl)
 			italic.update({
-				viewport: [50,50,500,500],
 				font: { family, weight, stretch, style: 'italic' },
-				position: [(stretches.length - 1 + j) * 40, i*20 - 80],
+				position: [(stretches.length - 1 + j) * 40, i*20],
 				text: weight
 			})
 
@@ -82,6 +80,22 @@ t('alignment', t => {
 	}))
 	t.end()
 })
+
+t.only('1e6 letters', t => {
+	let chars = 'abc'
+
+	for (let i = 0; i < 1e2; i++) {
+		for (let j = 0; j < 1e2; j++) {
+			q.push(new Text({
+				gl,
+				text: chars,
+				position: [i * 10, j * 10]
+			}))
+		}
+	}
+})
+
+t('changing font-size does not trigger text offsets recalc')
 
 t('spacing', t => {
 	t.end()
@@ -167,14 +181,19 @@ setTimeout(() => {
 			range[0] -= rx * xrange * dz
 			range[2] += (1 - rx) * xrange * dz
 
-			range[1] -= ry * yrange * dz
-			range[3] += (1 - ry) * yrange * dz
+			// range[1] -= ry * yrange * dz
+			// range[3] += (1 - ry) * yrange * dz
+
+			range[1] -= (1 - ry) * yrange * dz
+			range[3] += ry * yrange * dz
 		}
 
 		range[0] -= xrange * e.dx / w
 		range[2] -= xrange * e.dx / w
-		range[1] -= yrange * e.dy / h
-		range[3] -= yrange * e.dy / h
+		// range[1] -= yrange * e.dy / h
+		// range[3] -= yrange * e.dy / h
+		range[1] += yrange * e.dy / h
+		range[3] += yrange * e.dy / h
 
 		q.render({ range })
 	})

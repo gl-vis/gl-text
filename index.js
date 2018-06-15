@@ -41,6 +41,7 @@ class GlText {
 				uniform vec4 viewport;
 				uniform vec2 position, atlasSize, atlasDim, scale, translate;
 				varying vec2 charCoord, charId;
+				varying float charWidth;
 				void main () {
 					vec2 offset = vec2((align + em * offset) / (viewport.z * scale.x), 0);
 					vec2 position = (position + offset + translate) * scale;
@@ -54,6 +55,8 @@ class GlText {
 
 					charId.x = mod(char, atlasDim.x);
 					charId.y = floor(char / atlasDim.x);
+
+					charWidth = width * em;
 				}`,
 
 				frag: `
@@ -63,17 +66,27 @@ class GlText {
 				uniform float fontSize, charStep;
 				uniform vec2 atlasSize;
 				varying vec2 charCoord, charId;
+				varying float charWidth;
 				void main () {
-					vec4 fontColor = color;
-					vec2 uv = gl_FragCoord.xy - charCoord + charStep * .5;
+					float charCenter = charStep * .5;
+					vec2 uv = gl_FragCoord.xy - charCoord + charCenter;
 					uv.y = charStep - uv.y;
+
+					if (uv.x > charCenter + charWidth * .5 || uv.x < charCenter - charWidth * .5) return;
+
 					uv += charId * charStep;
 					uv = uv / atlasSize;
+
+					vec4 fontColor = color;
 					vec4 mask = texture2D(atlas, uv);
 
 					// antialiasing, see yiq color space y-channel formula
 					fontColor.a *= (mask.r * 0.299) + (mask.g * 0.587) + (mask.b * 0.114);
 					fontColor.rgb += (1. - fontColor.rgb) * (1. - mask.rgb);
+
+					// fontColor.a += .1;
+					// fontColor.r = 0.;
+					// fontColor.g = 0.;
 
 					gl_FragColor = fontColor;
 				}`,
@@ -159,9 +172,7 @@ class GlText {
 		this.charBuffer = this.regl.buffer({ type: 'uint8', usage: 'stream' })
 		this.sizeBuffer = this.regl.buffer({ type: 'float', usage: 'stream' })
 
-		this.update(isPlainObj(o) ? o : {
-			font: '16px sans-serif'
-		})
+		this.update(isPlainObj(o) ? o : {})
 	}
 
 	update (o) {
@@ -223,6 +234,8 @@ class GlText {
 			this.scale = [1 / this.viewport.width, 1 / this.viewport.height]
 		}
 		if (!this.translate) this.translate = [-this.viewport.x, -this.viewport.y]
+
+		if (!this.font && !o.font) o.font = '16px sans-serif'
 
 		// normalize font caching string
 		let newFont = false, newFontSize = false
@@ -448,6 +461,7 @@ GlText.prototype.color = [0, 0, 0, 1]
 GlText.prototype.position = [0, 0]
 GlText.prototype.translate = null
 GlText.prototype.scale = null
+GlText.prototype.font = null
 GlText.prototype.text = ''
 
 
