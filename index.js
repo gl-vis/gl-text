@@ -37,12 +37,12 @@ class GlText {
 				vert: `
 				precision mediump float;
 				attribute float width, offset, char;
-				uniform float fontSize, charStep, em;
+				uniform float fontSize, charStep, em, align;
 				uniform vec4 viewport;
 				uniform vec2 position, atlasSize, atlasDim, scale, translate;
 				varying vec2 charCoord, charId;
 				void main () {
-					vec2 offset = vec2(em * offset / (viewport.z * scale.x), 0);
+					vec2 offset = vec2((align + em * offset) / (viewport.z * scale.x), 0);
 					vec2 position = (position + offset + translate) * scale;
 
 					${ GlText.normalViewport ? 'position.y = 1. - position.y;' : '' }
@@ -118,31 +118,25 @@ class GlText {
 					atlas: function () { return this.fontAtlas.texture },
 					viewport: regl.this('viewportArray'),
 					color: regl.this('color'),
-					scale: function () {
-						// undefined scale corresponds to viewport
-						if (!this.scale) {
-							return [1 / this.viewport.width, 1 / this.viewport.height]
-						}
-						return this.scale
-					},
-					translate: function () {
-						let t
-						if (!this.translate) t = [-this.viewport.x, -this.viewport.y]
-						else t = this.translate.slice()
+					scale: regl.this('scale'),
+					align: function () {
+						let tw = this.textWidth
 
 						switch (this.align) {
 							case 'right':
 							case 'end':
-								t[0] -= this.textWidth
-								break;
+								return -tw
 							case 'center':
+							case 'centre':
 							case 'middle':
-								t[0] -= this.textWidth * .5
+								return -tw * .5
 						}
-
-						return t
+						return 0
 					},
-					charStep: function () { return this.fontAtlas.step }
+					translate: regl.this('translate'),
+					charStep: function () {
+						return this.fontAtlas.step
+					}
 				},
 				primitive: 'points',
 				count: regl.this('count'),
@@ -223,6 +217,12 @@ class GlText {
 		}
 		if (o.scale) this.scale = o.scale
 		if (o.translate) this.translate = o.translate
+
+		// default scale corresponds to viewport
+		if (!this.scale) {
+			this.scale = [1 / this.viewport.width, 1 / this.viewport.height]
+		}
+		if (!this.translate) this.translate = [-this.viewport.x, -this.viewport.y]
 
 		// normalize font caching string
 		let newFont = false, newFontSize = false
