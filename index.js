@@ -45,10 +45,9 @@ class GlText {
 					vec2 offset = vec2(em * offset / (viewport.z * scale.x), 0);
 					vec2 position = (position + offset + translate) * scale;
 
-					// invert position
-					position.y = 1. - position.y;
+					${ GlText.normalViewport ? 'position.y = 1. - position.y;' : '' }
 
-					charCoord = position * viewport.zw;
+					charCoord = position * (viewport.zw) + viewport.xy;
 					gl_Position = vec4(position * 2. - 1., 0, 1);
 
 					gl_PointSize = charStep;
@@ -60,7 +59,7 @@ class GlText {
 				frag: `
 				precision mediump float;
 				uniform sampler2D atlas;
-				uniform vec4 color, viewport;
+				uniform vec4 color;
 				uniform float fontSize, charStep;
 				uniform vec2 atlasSize;
 				varying vec2 charCoord, charId;
@@ -119,9 +118,18 @@ class GlText {
 					atlas: function () { return this.fontAtlas.texture },
 					viewport: regl.this('viewportArray'),
 					color: regl.this('color'),
-					scale: regl.this('scale'),
+					scale: function () {
+						// undefined scale corresponds to viewport
+						if (!this.scale) {
+							return [1 / this.viewport.width, 1 / this.viewport.height]
+						}
+						return this.scale
+					},
 					translate: function () {
-						let t = this.translate.slice()
+						let t
+						if (!this.translate) t = [-this.viewport.x, -this.viewport.y]
+						else t = this.translate.slice()
+
 						switch (this.align) {
 							case 'right':
 							case 'end':
@@ -184,10 +192,9 @@ class GlText {
 		if (o.viewport != null) {
 			this.viewport = parseRect(o.viewport)
 
-			// invert viewport
-			// if (this.invertViewport) {
-			// 	this.viewport.y = this.canvas.height - this.viewport.y - this.viewport.height
-			// }
+			if (GlText.normalViewport) {
+				this.viewport.y = this.canvas.height - this.viewport.y - this.viewport.height
+			}
 
 			this.viewportArray = [this.viewport.x, this.viewport.y, this.viewport.width, this.viewport.height]
 
@@ -209,11 +216,8 @@ class GlText {
 
 		if (o.position) this.position = o.position
 
-		if (!o.scale && !o.range) {
-			// o.range = [0, 0, 1, 1]
-			o.range = this.viewportArray
-		}
 		if (o.range) {
+			this.range = o.range
 			this.scale = [1 / (o.range[2] - o.range[0]), 1 / (o.range[3] - o.range[1])]
 			this.translate = [-o.range[0], -o.range[1]]
 		}
@@ -386,7 +390,11 @@ class GlText {
 					sizeData[1] = sizeData[0] * .5
 				}
 			}
-			this.textWidth = (sizeData[sizeData.length - 2] * .5 + sizeData[sizeData.length - 1]) * this.fontAtlas.em
+			if (this.count) {
+				this.textWidth = (sizeData[sizeData.length - 2] * .5 + sizeData[sizeData.length - 1]) * this.fontAtlas.em
+			} else {
+				this.textWidth = 0
+			}
 
 			this.charBuffer({data: charIds, type: 'uint8', usage: 'stream'})
 			this.sizeBuffer({data: sizeData, type: 'float', usage: 'stream'})
@@ -438,11 +446,13 @@ class GlText {
 GlText.prototype.kerning = true
 GlText.prototype.color = [0, 0, 0, 1]
 GlText.prototype.position = [0, 0]
-GlText.prototype.translate = [0, 0]
+GlText.prototype.translate = null
 GlText.prototype.scale = null
-GlText.prototype.invertViewport = true
 GlText.prototype.text = ''
 
+
+// whether viewport should be top↓bottom 2d one (true) or webgl one (false)
+GlText.normalViewport = false
 
 // size of an atlas
 GlText.maxAtlasSize = 1024

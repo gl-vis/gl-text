@@ -13,7 +13,7 @@ const panzoom = require('pan-zoom')
 let q = []
 
 
-t('font', t => {
+t.only('font', t => {
 	let matrix = []
 
 	let family = ['Roboto', 'sans-serif']
@@ -23,12 +23,13 @@ t('font', t => {
 	for (let i = 4; i < weights.length; i++) {
 		let weight = weights[i]
 
-		for (let j = 1; j < stretches.length; j++) {
+		for (let j = 0; j < stretches.length; j++) {
 			let stretch = stretches[j]
 			let normal = new Text(gl)
 			normal.update({
+				viewport: [50,50,500,500],
 				font: { family, weight, stretch },
-				position: [j * 40, i*20],
+				position: [j * 40, i*20 - 80],
 				text: weight
 			})
 
@@ -37,12 +38,13 @@ t('font', t => {
 			// <text gl={gl} position={[j * 40, i * 20]} font={{family, weight, stretch}} text={weight}/>
 		}
 
-		for (let j = 1; j < stretches.length; j++) {
+		for (let j = 0; j < stretches.length; j++) {
 			let stretch = stretches[j]
 			let italic = new Text(gl)
 			italic.update({
+				viewport: [50,50,500,500],
 				font: { family, weight, stretch, style: 'italic' },
-				position: [(stretches.length - 1 + j) * 40, i*20],
+				position: [(stretches.length - 1 + j) * 40, i*20 - 80],
 				text: weight
 			})
 
@@ -144,9 +146,9 @@ q.render = function (opts) {
 }
 
 setTimeout(() => {
+	let vp = q[0].viewport
+	let range = [vp.x, vp.y, vp.x + vp.width, vp.y + vp.height]
 	q.render()
-
-	let range = [0, 0, gl.canvas.width, gl.canvas.height]
 
 	panzoom(document.body, e => {
 		let canvas = gl.canvas
@@ -176,4 +178,4 @@ setTimeout(() => {
 
 		q.render({ range })
 	})
-})
+}, 50)
