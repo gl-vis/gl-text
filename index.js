@@ -16,6 +16,10 @@ let kerning = require('detect-kerning')
 let extend = require('object-assign')
 let fontMetrics = require('fontmetrics')
 
+// ( is considered hanging baseline by canvas2d
+fontMetrics.settings.chars.ascent = '(h)[]▌'
+fontMetrics.settings.chars.descent = '(p)[]▌'
+
 
 class GlText {
 	constructor (o) {
@@ -37,13 +41,13 @@ class GlText {
 				vert: `
 				precision mediump float;
 				attribute float width, offset, char;
-				uniform float fontSize, charStep, em, align;
+				uniform float fontSize, charStep, em, align, baseline;
 				uniform vec4 viewport;
 				uniform vec2 position, atlasSize, atlasDim, scale, translate;
 				varying vec2 charCoord, charId;
 				varying float charWidth;
 				void main () {
-					vec2 offset = vec2((align + em * offset) / (viewport.z * scale.x), 0);
+					vec2 offset = vec2((align + em * offset) / (viewport.z * scale.x), baseline);
 					vec2 position = (position + offset + translate) * scale;
 
 					${ GlText.normalViewport ? 'position.y = 1. - position.y;' : '' }
@@ -63,20 +67,21 @@ class GlText {
 				precision mediump float;
 				uniform sampler2D atlas;
 				uniform vec4 color;
-				uniform float fontSize, charStep;
+				uniform float fontSize, charStep, baseline;
 				uniform vec2 atlasSize;
 				varying vec2 charCoord, charId;
 				varying float charWidth;
 				void main () {
-					float charCenter = charStep * .5;
-					vec2 uv = gl_FragCoord.xy - charCoord + charCenter;
+					float halfCharStep = charStep * .5;
+					vec2 uv = gl_FragCoord.xy - charCoord + halfCharStep;
 					uv.y = charStep - uv.y;
 
 					// ignore points outside of character bounding box
-					float halfWidth = charWidth * .5;
-					if (uv.x > charCenter + halfWidth ||
-						uv.x < charCenter - halfWidth) return;
+					float halfCharWidth = charWidth * .5;
+					if (uv.x > halfCharStep + halfCharWidth ||
+						uv.x < halfCharStep - halfCharWidth) return;
 
+					// uv.y += baseline;
 					uv += charId * charStep;
 					uv = uv / atlasSize;
 
@@ -87,9 +92,9 @@ class GlText {
 					fontColor.a *= (mask.r * 0.299) + (mask.g * 0.587) + (mask.b * 0.114);
 					fontColor.rgb += (1. - fontColor.rgb) * (1. - mask.rgb);
 
-					// fontColor.a += .1;
-					// fontColor.r = 0.;
-					// fontColor.g = 0.;
+					fontColor.a += .1;
+					fontColor.r = 0.;
+					fontColor.g = 0.;
 
 					gl_FragColor = fontColor;
 				}`,
@@ -135,19 +140,18 @@ class GlText {
 					viewport: regl.this('viewportArray'),
 					color: regl.this('color'),
 					scale: regl.this('scale'),
-					align: function () {
-						let tw = this.textWidth
+					align: regl.this('alignOffset'),
+					baseline: regl.this('baselineOffset'),
+					uvOffset: function () {
+						let m = this.font.metrics
+						// measure shift from the lineHeight middle to fontSize middle
+						// let fs = m.descent - m.ascent
+						// console.log(fs)
+						let lineHeight = m.bottom * this.fontSize
+						let fsMiddle = (m.descent + m.ascent) * .5
+						let shift = m.bottom * .5 - fsMiddle
 
-						switch (this.align) {
-							case 'right':
-							case 'end':
-								return -tw
-							case 'center':
-							case 'centre':
-							case 'middle':
-								return -tw * .5
-						}
-						return 0
+						return 0// shift * lineHeight
 					},
 					translate: regl.this('translate'),
 					charStep: function () {
@@ -182,6 +186,7 @@ class GlText {
 		if (typeof o === 'string') o = { text: o }
 		else if (!o) return
 
+		// FIXME: make this a static transform or more general approact
 		o = pick(o, {
 			font: 'font fontFace fontface typeface cssFont css-font',
 			fontSize: 'fontSize fontsize size font-size',
@@ -196,7 +201,14 @@ class GlText {
 			opacity: 'opacity alpha transparency visible visibility opaque'
 		}, true)
 
+
 		if (o.opacity != null) this.opacity = parseFloat(o.opacity)
+
+		// FIXME: mb add multiple colors?
+		if (o.color) {
+			this.color = rgba(o.color)
+		}
+
 		if (o.viewport != null) {
 			this.viewport = parseRect(o.viewport)
 
@@ -218,9 +230,7 @@ class GlText {
 
 		if (o.kerning != null) this.kerning = o.kerning
 
-		if (o.baseline) this.baseline = o.baseline
 		if (o.direction) this.direction = o.direction
-		if (o.align) this.align = o.align
 
 		if (o.position) this.position = o.position
 
@@ -290,6 +300,7 @@ class GlText {
 						kerning: {},
 
 						metrics: fontMetrics({
+							origin: 'top',
 							fontFamily: family,
 							fontSize: GlText.baseFontSize,
 							fontWeight: `${o.font.style} ${o.font.variant} ${o.font.weight} ${o.font.stretch}`
@@ -323,11 +334,15 @@ class GlText {
 
 			// calc new font size atlas
 			this.fontAtlas = this.shader.atlas[this.fontString]
+
 			if (!this.fontAtlas) {
+				let metrics = this.font.metrics
+				let em = this.fontSize / GlText.baseFontSize
+
 				this.shader.atlas[this.fontString] =
 				this.fontAtlas = {
-					step: Math.ceil(this.fontSize * GlText.atlasStep),
-					em: this.fontSize / GlText.baseFontSize,
+					step: this.fontSize * metrics.bottom,
+					em,
 					cols: 0,
 					rows: 0,
 					height: 0,
@@ -406,11 +421,13 @@ class GlText {
 					sizeData[1] = sizeData[0] * .5
 				}
 			}
+
 			if (this.count) {
 				this.textWidth = (sizeData[sizeData.length - 2] * .5 + sizeData[sizeData.length - 1]) * this.fontAtlas.em
 			} else {
 				this.textWidth = 0
 			}
+			this.alignOffset = alignOffset(this.align, this.textWidth)
 
 			this.charBuffer({data: charIds, type: 'uint8', usage: 'stream'})
 			this.sizeBuffer({data: sizeData, type: 'float', usage: 'stream'})
@@ -427,10 +444,11 @@ class GlText {
 				let rows = Math.ceil(this.fontAtlas.chars.length / cols)
 
 				let atlasWidth = cols * step
-				let atlasHeight = rows * step
+				// let atlasHeight = Math.min(rows * step + step * .5, GlText.maxAtlasSize);
+				let atlasHeight = rows * step;
 
 				this.fontAtlas.width = atlasWidth
-				this.fontAtlas.height = atlasHeight
+				this.fontAtlas.height = atlasHeight;
 				this.fontAtlas.rows = rows
 				this.fontAtlas.cols = cols
 
@@ -446,9 +464,41 @@ class GlText {
 			}
 		}
 
-		// FIXME: mb add multiple colors?
-		if (o.color) {
-			this.color = rgba(o.color)
+		if (o.align) {
+			this.align = o.align
+			this.alignOffset = alignOffset(this.align, this.textWidth)
+		}
+
+		if (o.baseline) {
+			this.baseline = o.baseline
+			let m = this.font.metrics
+			let lh = this.fontSize * m.bottom
+			let base = 0
+			let middleShift = m.bottom * .5 - (m.ascent + m.descent) * .5
+
+			switch (this.baseline) {
+				case 'hanging':
+					base += 0
+					break
+					base += 0
+					break
+				case 'top':
+					base += m.bottom * this.fontSize * .5
+					break;
+				case 'alphabetic':
+				case 'baseline':
+					base += +middleShift * this.fontSize - m.baseline * this.fontSize - this.ascent * this.fontSize
+					break
+				case 'ideographic':
+				case 'bottom':
+					base += m.bottom * this.fontSize * .5
+					break
+				case 'middle':
+				default:
+					base = 0
+					break
+			}
+			this.baselineOffset = base
 		}
 	}
 
@@ -465,11 +515,12 @@ GlText.prototype.position = [0, 0]
 GlText.prototype.translate = null
 GlText.prototype.scale = null
 GlText.prototype.font = null
+GlText.prototype.baselineOffset = 0
 GlText.prototype.text = ''
 
 
 // whether viewport should be top↓bottom 2d one (true) or webgl one (false)
-GlText.normalViewport = false
+GlText.normalViewport = true
 
 // size of an atlas
 GlText.maxAtlasSize = 1024
@@ -482,11 +533,11 @@ GlText.atlasCanvas = document.createElement('canvas')
 GlText.atlasContext = GlText.atlasCanvas.getContext('2d', {alpha: false})
 
 // font-size used for metrics, atlas step calculation
-GlText.baseFontSize = 32
+GlText.baseFontSize = 128
 
 // fontSize / atlasStep multiplier
 // FIXME: figure that out from line-height
-GlText.atlasStep = 1.2
+GlText.atlasStep = 1
 
 // fonts storage
 GlText.fonts = {}
@@ -495,6 +546,18 @@ GlText.fonts = {}
 // FIXME: enable atlas size limitation via LRU
 // GlText.atlasCacheSize = 64
 
+function alignOffset (align, tw) {
+	switch (align) {
+		case 'right':
+		case 'end':
+			return -tw
+		case 'center':
+		case 'centre':
+		case 'middle':
+			return -tw * .5
+	}
+	return 0
+}
 
 function isRegl (o) {
 	return typeof o === 'function' &&
