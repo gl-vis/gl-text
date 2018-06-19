@@ -44,7 +44,7 @@ class GlText {
 				varying float charWidth;
 				void main () {
 					vec2 offset = vec2(
-						floor(align + em * charOffset + .5) / (viewport.z * scale.x),
+						floor(em * (align + charOffset) + .5) / (viewport.z * scale.x),
 						baseline / (viewport.w * scale.y)
 					);
 					vec2 position = (position + translate) * scale;
@@ -78,7 +78,7 @@ class GlText {
 				}
 
 				void main () {
-					float halfCharStep = floor(charStep * .5);
+					float halfCharStep = floor(charStep * .5 + .5);
 					vec2 uv = gl_FragCoord.xy - charCoord + halfCharStep;
 					uv.y = charStep - uv.y;
 
@@ -97,7 +97,7 @@ class GlText {
 					// float colorY = lightness(fontColor);
 					fontColor.a *= maskY;
 
-					// fontColor.a += .1;
+					fontColor.a += .1;
 
 					// antialiasing, see yiq color space y-channel formula
 					// fontColor.rgb += (1. - fontColor.rgb) * (1. - mask.rgb);
@@ -510,7 +510,7 @@ GlText.atlasCanvas = document.createElement('canvas')
 GlText.atlasContext = GlText.atlasCanvas.getContext('2d', {alpha: false})
 
 // font-size used for metrics, atlas step calculation
-GlText.baseFontSize = 128
+GlText.baseFontSize = 64
 
 // fontSize / atlasStep multiplier
 // FIXME: figure that out from line-height
@@ -524,6 +524,7 @@ GlText.fonts = {}
 // GlText.atlasCacheSize = 64
 
 function alignOffset (align, tw) {
+	if (typeof align === 'number') return align
 	switch (align) {
 		case 'right':
 		case 'end':

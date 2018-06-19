@@ -65,18 +65,21 @@ t('alignment', t => {
 	let ctx = canvas.getContext('2d')
 
 	// +
-	ctx.fillStyle = 'black'
+	ctx.fillStyle = 'blue'
 	ctx.fillRect(canvas.width / 2 - 25, canvas.height / 2, 100, 1)
 	ctx.fillRect(canvas.width / 2, canvas.height / 2 - 25, 1, 50)
+	// ctx.font = '48px Roboto'
+	// ctx.textBaseline = 'top'
+	// ctx.fillText('MiddleDitchThomas', canvas.width / 2, canvas.height / 2)
 
 	q.push(new Text({
 		gl,
 		baseline: 'top',
-		align: 'left',
-		color: '#000',
+		align: 0,//'left',
+		color: 'black',
 		font: '48px Roboto',
-		// position: [1, 1],
-		// range: [0,0,2,2],
+		position: [1, 1],
+		range: [0,0,2,2],
 		text: 'Middle'
 	}))
 	t.end()
