@@ -36,7 +36,7 @@ class GlText {
 			let draw = regl({
 				vert: `
 				precision mediump float;
-				attribute float width, xOffset, char;
+				attribute float width, charOffset, char;
 				uniform float fontSize, charStep, em, align, baseline;
 				uniform vec4 viewport;
 				uniform vec2 position, atlasSize, atlasDim, scale, translate;
@@ -44,16 +44,15 @@ class GlText {
 				varying float charWidth;
 				void main () {
 					vec2 offset = vec2(
-						floor(align + em * xOffset) / (viewport.z * scale.x),
+						floor(align + em * charOffset + .5) / (viewport.z * scale.x),
 						baseline / (viewport.w * scale.y)
 					);
 					vec2 position = (position + translate) * scale;
-					position.x += offset.x * scale.x;
-					position.y += offset.y * scale.y;
+					position += offset * scale;
 
 					${ GlText.normalViewport ? 'position.y = 1. - position.y;' : '' }
 
-					charCoord = floor(position * viewport.zw + viewport.xy) - .5;
+					charCoord = floor(position * viewport.zw + viewport.xy + .5);
 
 					gl_Position = vec4(position * 2. - 1., 0, 1);
 
@@ -79,14 +78,14 @@ class GlText {
 				}
 
 				void main () {
-					float halfCharStep = charStep * .5;
+					float halfCharStep = floor(charStep * .5);
 					vec2 uv = gl_FragCoord.xy - charCoord + halfCharStep;
 					uv.y = charStep - uv.y;
 
 					// ignore points outside of character bounding box
-					float halfCharWidth = charWidth * .5;
-					if (floor(uv.x) > ceil(halfCharStep + halfCharWidth) ||
-						floor(uv.x) < ceil(halfCharStep - halfCharWidth)) return;
+					float halfCharWidth = ceil(charWidth * .5);
+					if (floor(uv.x) > halfCharStep + halfCharWidth ||
+						floor(uv.x) < halfCharStep - halfCharWidth) return;
 
 					uv += charId * charStep;
 					uv = uv / atlasSize;
@@ -97,10 +96,11 @@ class GlText {
 					float maskY = lightness(mask);
 					// float colorY = lightness(fontColor);
 					fontColor.a *= maskY;
-					fontColor.a += .1;
+
+					// fontColor.a += .1;
 
 					// antialiasing, see yiq color space y-channel formula
-					// fontColor.rgb = fontColor.rgb * (colorY * mask.rgb);
+					// fontColor.rgb += (1. - fontColor.rgb) * (1. - mask.rgb);
 
 					gl_FragColor = fontColor;
 				}`,
@@ -121,7 +121,7 @@ class GlText {
 
 				attributes: {
 					char: regl.this('charBuffer'),
-					xOffset: {
+					charOffset: {
 						offset: 4,
 						stride: 8,
 						buffer: regl.this('sizeBuffer')
@@ -134,14 +134,14 @@ class GlText {
 				},
 				uniforms: {
 					position: regl.this('position'),
-					atlasSize: function (c, p) {
+					atlasSize: function () {
 						return [this.fontAtlas.width, this.fontAtlas.height]
 					},
 					atlasDim: function () {
 						return [this.fontAtlas.cols, this.fontAtlas.rows]
 					},
 					fontSize: regl.this('fontSize'),
-					em: function () { return this.fontAtlas.em },
+					em: function () { return this.fontSize },
 					atlas: function () { return this.fontAtlas.texture },
 					viewport: regl.this('viewportArray'),
 					color: regl.this('color'),
@@ -193,7 +193,8 @@ class GlText {
 			kerning: 'kerning kern',
 			viewport: 'vp viewport viewBox viewbox viewPort',
 			range: 'range dataBox',
-			opacity: 'opacity alpha transparency visible visibility opaque'
+			opacity: 'opacity alpha transparency visible visibility opaque',
+			offset: 'offset padding shift indent indentation'
 		}, true)
 
 
@@ -238,9 +239,8 @@ class GlText {
 		if (o.translate) this.translate = o.translate
 
 		// default scale corresponds to viewport
-		if (!this.scale) {
-			this.scale = [1 / this.viewport.width, 1 / this.viewport.height]
-		}
+		if (!this.scale) this.scale = [1 / this.viewport.width, 1 / this.viewport.height]
+
 		if (!this.translate) this.translate = [0, 0]
 
 		if (!this.font && !o.font) o.font = '16px sans-serif'
@@ -296,7 +296,6 @@ class GlText {
 
 						metrics: metrics(family, {
 							origin: 'top',
-							size: GlText.baseFontSize,
 							fontSize: GlText.baseFontSize,
 							fontStyle: `${o.font.style} ${o.font.variant} ${o.font.weight} ${o.font.stretch}`
 						})
@@ -332,12 +331,11 @@ class GlText {
 
 			if (!this.fontAtlas) {
 				let metrics = this.font.metrics
-				let em = this.fontSize / GlText.baseFontSize
 
 				this.shader.atlas[this.fontString] =
 				this.fontAtlas = {
 					step: this.fontSize * metrics.bottom,
-					em,
+					em: this.fontSize,
 					cols: 0,
 					rows: 0,
 					height: 0,
@@ -373,7 +371,7 @@ class GlText {
 				}
 
 				if (this.font.width[char] == null) {
-					this.font.width[char] = GlText.atlasContext.measureText(char).width
+					this.font.width[char] = GlText.atlasContext.measureText(char).width / GlText.baseFontSize
 
 					// measure kerning pairs for the new character
 					if (this.kerning) {
@@ -388,6 +386,7 @@ class GlText {
 
 			// populate text/offset buffers
 			// as [charWidth, offset, charWidth, offset...]
+			// that is in em units since font-size can change often
 			let charIds = pool.mallocUint8(this.count)
 			let sizeData = pool.mallocFloat(this.count * 2)
 			for (let i = 0; i < this.count; i++) {
@@ -404,9 +403,9 @@ class GlText {
 					let offset = prevOffset + prevWidth * .5 + currWidth * .5;
 
 					if (this.kerning) {
-						let kerningEm = this.font.kerning[prevChar + char]
-						if (kerningEm) {
-							offset += this.fontSize * kerningEm * 1e-3
+						let kerning = this.font.kerning[prevChar + char]
+						if (kerning) {
+							offset += kerning * 1e-3
 						}
 					}
 
@@ -418,7 +417,7 @@ class GlText {
 			}
 
 			if (this.count) {
-				this.textWidth = (sizeData[sizeData.length - 2] * .5 + sizeData[sizeData.length - 1]) * this.fontAtlas.em
+				this.textWidth = (sizeData[sizeData.length - 2] * .5 + sizeData[sizeData.length - 1])
 			} else {
 				this.textWidth = 0
 			}
@@ -473,8 +472,9 @@ class GlText {
 				base += (this.baseline - m.baseline) * this.fontSize
 			}
 			else {
-				base -= m[this.baseline] * this.fontSize
+				base += -m[this.baseline] * this.fontSize
 			}
+			if (!GlText.normalViewport) base *= -1
 			this.baselineOffset = base
 		}
 	}

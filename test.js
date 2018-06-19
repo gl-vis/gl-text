@@ -23,7 +23,7 @@ t('font', t => {
 	for (let i = 4; i < weights.length; i++) {
 		let weight = weights[i]
 
-		for (let j = 0; j < stretches.length; j++) {
+		for (let j = 1; j < stretches.length; j++) {
 			let stretch = stretches[j]
 			let normal = new Text(gl)
 			normal.update({
@@ -37,7 +37,7 @@ t('font', t => {
 			// <text gl={gl} position={[j * 40, i * 20]} font={{family, weight, stretch}} text={weight}/>
 		}
 
-		for (let j = 0; j < stretches.length; j++) {
+		for (let j = 1; j < stretches.length; j++) {
 			let stretch = stretches[j]
 			let italic = new Text(gl)
 			italic.update({
@@ -75,8 +75,8 @@ t('alignment', t => {
 		align: 'left',
 		color: '#000',
 		font: '48px Roboto',
-		position: [1, 1],
-		range: [0,0,2,2],
+		// position: [1, 1],
+		// range: [0,0,2,2],
 		text: 'Middle'
 	}))
 	t.end()
