@@ -66,18 +66,18 @@ t('alignment', t => {
 
 	// +
 	ctx.fillStyle = 'black'
-	ctx.fillRect(400 - 25, 400, 100, 1)
-	ctx.fillRect(400, 400 - 25, 1, 50)
+	ctx.fillRect(canvas.width / 2 - 25, canvas.height / 2, 100, 1)
+	ctx.fillRect(canvas.width / 2, canvas.height / 2 - 25, 1, 50)
 
-	//
 	q.push(new Text({
 		gl,
-		baseline: 'middle',
+		baseline: 'top',
 		align: 'left',
 		color: '#000',
 		font: '48px Roboto',
-		position: [400, 400],
-		text: '(Qeuick Brown Fox Jumps over the Lazy Dog)'
+		position: [1, 1],
+		range: [0,0,2,2],
+		text: 'Middle'
 	}))
 	t.end()
 })
@@ -108,11 +108,15 @@ t('baseline')
 
 t('kerning')
 
-t('spacing')
+t('tracking (spacing)')
 
 t('viewport')
 
 t('range')
+
+t('line breaks')
+
+t('ignore spaces')
 
 t('canvas2d performance')
 
@@ -156,13 +160,13 @@ t.skip('Augment chars', t => {
 
 
 q.render = function (opts) {
-	q[0].regl.clear({color: [.9,.9,.9,1]})
 	if (opts) q.forEach(text => text.update(opts))
 	q.forEach(text => text.render())
 }
 
 setTimeout(() => {
 	let vp = q[0].viewport
+	// let range = q[0].range
 	let range = [vp.x, vp.y, vp.x + vp.width, vp.y + vp.height]
 	q.render()
 

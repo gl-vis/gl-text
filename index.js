@@ -36,19 +36,22 @@ class GlText {
 			let draw = regl({
 				vert: `
 				precision mediump float;
-				attribute float width, offset, char;
+				attribute float width, xOffset, char;
 				uniform float fontSize, charStep, em, align, baseline;
 				uniform vec4 viewport;
 				uniform vec2 position, atlasSize, atlasDim, scale, translate;
 				varying vec2 charCoord, charId;
 				varying float charWidth;
 				void main () {
-					vec2 offset = vec2((align + em * offset) / (viewport.z * scale.x), baseline);
-					vec2 position = (position + offset + translate) * scale;
+					vec2 offset = vec2((align + em * xOffset) / (viewport.z * scale.x), baseline / (viewport.w * scale.y));
+					vec2 position = (position + translate) * scale;
+					position.x += offset.x * scale.x;
+					position.y += offset.y * scale.y;
 
 					${ GlText.normalViewport ? 'position.y = 1. - position.y;' : '' }
 
-					charCoord = position * (viewport.zw) + viewport.xy;
+					charCoord = position * viewport.zw + viewport.xy;
+
 					gl_Position = vec4(position * 2. - 1., 0, 1);
 
 					gl_PointSize = charStep;
@@ -63,7 +66,7 @@ class GlText {
 				precision mediump float;
 				uniform sampler2D atlas;
 				uniform vec4 color;
-				uniform float fontSize, charStep, baseline;
+				uniform float fontSize, charStep;
 				uniform vec2 atlasSize;
 				varying vec2 charCoord, charId;
 				varying float charWidth;
@@ -82,18 +85,18 @@ class GlText {
 					if (uv.x > halfCharStep + halfCharWidth ||
 						uv.x < halfCharStep - halfCharWidth) return;
 
-					// uv.y += baseline;
 					uv += charId * charStep;
 					uv = uv / atlasSize;
 
 					vec4 fontColor = color;
 					vec4 mask = texture2D(atlas, uv);
 
-					// antialiasing, see yiq color space y-channel formula
 					float maskY = lightness(mask);
-					float colorY = lightness(fontColor);
+					// float colorY = lightness(fontColor);
 					fontColor.a *= maskY;
+					fontColor.a += .1;
 
+					// antialiasing, see yiq color space y-channel formula
 					// fontColor.rgb = fontColor.rgb * (colorY * mask.rgb);
 
 					gl_FragColor = fontColor;
@@ -115,7 +118,7 @@ class GlText {
 
 				attributes: {
 					char: regl.this('charBuffer'),
-					offset: {
+					xOffset: {
 						offset: 4,
 						stride: 8,
 						buffer: regl.this('sizeBuffer')
@@ -235,7 +238,7 @@ class GlText {
 		if (!this.scale) {
 			this.scale = [1 / this.viewport.width, 1 / this.viewport.height]
 		}
-		if (!this.translate) this.translate = [-this.viewport.x, -this.viewport.y]
+		if (!this.translate) this.translate = [0, 0]
 
 		if (!this.font && !o.font) o.font = '16px sans-serif'
 
@@ -491,7 +494,7 @@ GlText.prototype.text = ''
 
 
 // whether viewport should be top↓bottom 2d one (true) or webgl one (false)
-GlText.normalViewport = true
+GlText.normalViewport = false
 
 // size of an atlas
 GlText.maxAtlasSize = 1024
