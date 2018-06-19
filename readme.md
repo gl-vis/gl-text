@@ -64,7 +64,7 @@ Option | Description
 `text` |
 `position` | Position of the text, an array with `[x, y]` or an object with `{x, y}` coordinates.
 `align` | Alignment of a text relative to `position`. One of `left`, `right`, `center`, `start`, `end`.
-`baseline` | Vertical font alignment. One of `top`, `hanging`, `middle`, `alphabetic`, `ideographic`, `bottom`.
+`baseline` | Vertical alignment value, by default `middle`. Can be a string one of `top`, `hanging`, `middle`, `alphabetic`, `ideographic`, `bottom` etc. (see [font-measure](https://ghub.io/font-measure)) or a number, denoting `0` as alphabetic baseline.
 `font` | CSS font string or object with font settings, see [css-font](https://ghub.com/css-font) package.
 `kerning` | Enable font kerning, by default `true`. Disable for the case of monospace fonts. See [detect-kerning](https://ghub.io/detect-kerning) package.
 `range` | Data area corresponding to position in viewport. Useful for organizing fast zoom/pan. By default is the same as the viewport `[0, 0, canvas.width, canvas.height]`.

@@ -14,11 +14,7 @@ let parseUnit = require('parse-unit')
 let px = require('to-px')
 let kerning = require('detect-kerning')
 let extend = require('object-assign')
-let fontMetrics = require('fontmetrics')
-
-// ( is considered hanging baseline by canvas2d
-fontMetrics.settings.chars.ascent = '(h)[]▌'
-fontMetrics.settings.chars.descent = '(p)[]▌'
+let metrics = require('font-measure')
 
 
 class GlText {
@@ -71,6 +67,11 @@ class GlText {
 				uniform vec2 atlasSize;
 				varying vec2 charCoord, charId;
 				varying float charWidth;
+
+				float lightness(vec4 color) {
+					return color.r * 0.299 + color.g * 0.587 + color.b * 0.114;
+				}
+
 				void main () {
 					float halfCharStep = charStep * .5;
 					vec2 uv = gl_FragCoord.xy - charCoord + halfCharStep;
@@ -89,12 +90,11 @@ class GlText {
 					vec4 mask = texture2D(atlas, uv);
 
 					// antialiasing, see yiq color space y-channel formula
-					fontColor.a *= (mask.r * 0.299) + (mask.g * 0.587) + (mask.b * 0.114);
-					fontColor.rgb += (1. - fontColor.rgb) * (1. - mask.rgb);
+					float maskY = lightness(mask);
+					float colorY = lightness(fontColor);
+					fontColor.a *= maskY;
 
-					fontColor.a += .1;
-					fontColor.r = 0.;
-					fontColor.g = 0.;
+					// fontColor.rgb = fontColor.rgb * (colorY * mask.rgb);
 
 					gl_FragColor = fontColor;
 				}`,
@@ -142,17 +142,6 @@ class GlText {
 					scale: regl.this('scale'),
 					align: regl.this('alignOffset'),
 					baseline: regl.this('baselineOffset'),
-					uvOffset: function () {
-						let m = this.font.metrics
-						// measure shift from the lineHeight middle to fontSize middle
-						// let fs = m.descent - m.ascent
-						// console.log(fs)
-						let lineHeight = m.bottom * this.fontSize
-						let fsMiddle = (m.descent + m.ascent) * .5
-						let shift = m.bottom * .5 - fsMiddle
-
-						return 0// shift * lineHeight
-					},
 					translate: regl.this('translate'),
 					charStep: function () {
 						return this.fontAtlas.step
@@ -299,11 +288,11 @@ class GlText {
 						// kernin pairs offsets
 						kerning: {},
 
-						metrics: fontMetrics({
+						metrics: metrics(family, {
 							origin: 'top',
-							fontFamily: family,
+							size: GlText.baseFontSize,
 							fontSize: GlText.baseFontSize,
-							fontWeight: `${o.font.style} ${o.font.variant} ${o.font.weight} ${o.font.stretch}`
+							fontStyle: `${o.font.style} ${o.font.variant} ${o.font.weight} ${o.font.stretch}`
 						})
 					}
 
@@ -469,34 +458,16 @@ class GlText {
 			this.alignOffset = alignOffset(this.align, this.textWidth)
 		}
 
-		if (o.baseline) {
+		if (o.baseline != null) {
 			this.baseline = o.baseline
 			let m = this.font.metrics
-			let lh = this.fontSize * m.bottom
 			let base = 0
-			let middleShift = m.bottom * .5 - (m.ascent + m.descent) * .5
-
-			switch (this.baseline) {
-				case 'hanging':
-					base += 0
-					break
-					base += 0
-					break
-				case 'top':
-					base += m.bottom * this.fontSize * .5
-					break;
-				case 'alphabetic':
-				case 'baseline':
-					base += +middleShift * this.fontSize - m.baseline * this.fontSize - this.ascent * this.fontSize
-					break
-				case 'ideographic':
-				case 'bottom':
-					base += m.bottom * this.fontSize * .5
-					break
-				case 'middle':
-				default:
-					base = 0
-					break
+			base += m.bottom * this.fontSize * .5
+			if (typeof this.baseline === 'number') {
+				base += (this.baseline - m.baseline) * this.fontSize
+			}
+			else {
+				base -= m[this.baseline] * this.fontSize
 			}
 			this.baselineOffset = base
 		}
