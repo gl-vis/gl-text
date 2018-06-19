@@ -43,14 +43,17 @@ class GlText {
 				varying vec2 charCoord, charId;
 				varying float charWidth;
 				void main () {
-					vec2 offset = vec2((align + em * xOffset) / (viewport.z * scale.x), baseline / (viewport.w * scale.y));
+					vec2 offset = vec2(
+						floor(align + em * xOffset) / (viewport.z * scale.x),
+						baseline / (viewport.w * scale.y)
+					);
 					vec2 position = (position + translate) * scale;
 					position.x += offset.x * scale.x;
 					position.y += offset.y * scale.y;
 
 					${ GlText.normalViewport ? 'position.y = 1. - position.y;' : '' }
 
-					charCoord = position * viewport.zw + viewport.xy;
+					charCoord = floor(position * viewport.zw + viewport.xy) - .5;
 
 					gl_Position = vec4(position * 2. - 1., 0, 1);
 
@@ -82,8 +85,8 @@ class GlText {
 
 					// ignore points outside of character bounding box
 					float halfCharWidth = charWidth * .5;
-					if (uv.x > halfCharStep + halfCharWidth ||
-						uv.x < halfCharStep - halfCharWidth) return;
+					if (floor(uv.x) > ceil(halfCharStep + halfCharWidth) ||
+						floor(uv.x) < ceil(halfCharStep - halfCharWidth)) return;
 
 					uv += charId * charStep;
 					uv = uv / atlasSize;
