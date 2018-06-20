@@ -5,8 +5,8 @@
   "main": "dist.js",
   "scripts": {
     "test": "budo --force-default-index test",
-    "bundle": "buble index.js > dist.js",
-    "build": "browserify test.js -g bubleify | indexhtmlify | metadataify | github-cornerify | mobilify > index.html"
+    "build": "buble index.js > dist.js",
+    "build-demo": "browserify test.js -g bubleify | indexhtmlify | metadataify | github-cornerify | mobilify > index.html"
   },
   "repository": {
     "type": "git",
