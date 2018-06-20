@@ -6,4 +6,4 @@ instances
 package-lock.json
 docs
 gh-pages
-dist
+dist*
