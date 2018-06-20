@@ -136,7 +136,7 @@ t('viewport')
 
 t('range')
 
-t.only('offset', t => {
+t('offset', t => {
 	// numeric offset
 	q.push(new Text({
 		gl,

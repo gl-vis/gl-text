@@ -1,20 +1,23 @@
 'use strict'
 
 let Font = require('css-font')
-let createRegl = require('regl')
 let pick = require('pick-by-alias')
+let createRegl = require('regl')
 let createGl = require('gl-util/context')
 let WeakMap = require('es6-weak-map')
 let rgba = require('color-normalize')
 let fontAtlas = require('../font-atlas')
 let pool = require('typedarray-pool')
 let parseRect = require('parse-rect')
-let isPlainObj = require('is-plain-obj')
+let isObj = require('is-plain-obj')
 let parseUnit = require('parse-unit')
 let px = require('to-px')
 let kerning = require('detect-kerning')
 let extend = require('object-assign')
 let metrics = require('font-measure')
+
+
+let shaderCache = new WeakMap
 
 
 class GlText {
@@ -27,7 +30,7 @@ class GlText {
 			this.gl = createGl(o)
 		}
 
-		let shader = GlText.shaderCache.get(this.gl)
+		let shader = shaderCache.get(this.gl)
 
 		if (!shader) {
 			let regl = o.regl || createRegl({ gl: this.gl })
@@ -35,7 +38,7 @@ class GlText {
 			// draw texture method
 			let draw = regl({
 				vert: `
-				precision mediump float;
+				precision highp float;
 				attribute float width, charOffset, char;
 				uniform float fontSize, charStep, em, align, baseline;
 				uniform vec4 viewport;
@@ -49,7 +52,7 @@ class GlText {
 
 					${ GlText.normalViewport ? 'position.y = 1. - position.y;' : '' }
 
-					charCoord = floor(position * viewport.zw + viewport.xy + .5);
+					charCoord = position * viewport.zw + viewport.xy;
 
 					gl_Position = vec4(position * 2. - 1., 0, 1);
 
@@ -62,7 +65,7 @@ class GlText {
 				}`,
 
 				frag: `
-				precision mediump float;
+				precision highp float;
 				uniform sampler2D atlas;
 				uniform vec4 color;
 				uniform float fontSize, charStep;
@@ -76,7 +79,7 @@ class GlText {
 
 				void main () {
 					float halfCharStep = floor(charStep * .5 + .5);
-					vec2 uv = gl_FragCoord.xy - charCoord + halfCharStep;
+					vec2 uv = floor(gl_FragCoord.xy - charCoord + halfCharStep);
 					uv.y = charStep - uv.y;
 
 					// ignore points outside of character bounding box
@@ -94,7 +97,7 @@ class GlText {
 					// float colorY = lightness(fontColor);
 					fontColor.a *= maskY;
 
-					fontColor.a += .05;
+					fontColor.a += .1;
 
 					// antialiasing, see yiq color space y-channel formula
 					// fontColor.rgb += (1. - fontColor.rgb) * (1. - mask.rgb);
@@ -161,7 +164,7 @@ class GlText {
 
 			shader = { regl, draw, atlas }
 
-			GlText.shaderCache.set(this.gl, shader)
+			shaderCache.set(this.gl, shader)
 		}
 
 		this.render = shader.draw.bind(this)
@@ -172,7 +175,7 @@ class GlText {
 		this.charBuffer = this.regl.buffer({ type: 'uint8', usage: 'stream' })
 		this.sizeBuffer = this.regl.buffer({ type: 'float', usage: 'stream' })
 
-		this.update(isPlainObj(o) ? o : {})
+		this.update(isObj(o) ? o : {})
 	}
 
 	update (o) {
@@ -189,8 +192,8 @@ class GlText {
 			direction: 'dir direction textDirection',
 			color: 'color colour fill fill-color fillColor textColor textcolor',
 			kerning: 'kerning kern',
-			viewport: 'vp viewport viewBox viewbox viewPort',
 			range: 'range dataBox',
+			viewport: 'vp viewport viewBox viewbox viewPort',
 			opacity: 'opacity alpha transparency visible visibility opaque',
 			offset: 'offset padding shift indent indentation'
 		}, true)
@@ -347,7 +350,8 @@ class GlText {
 
 				this.shader.atlas[this.fontString] =
 				this.fontAtlas = {
-					step: this.fontSize * metrics.bottom,
+					// even step is better for rendered characters
+					step: Math.ceil(this.fontSize * metrics.bottom * .5) * 2,
 					em: this.fontSize,
 					cols: 0,
 					rows: 0,
@@ -512,6 +516,7 @@ GlText.prototype.translate = null
 GlText.prototype.scale = null
 GlText.prototype.font = null
 GlText.prototype.text = ''
+GlText.prototype.offset = [0, 0]
 
 
 // whether viewport should be top↓bottom 2d one (true) or webgl one (false)
@@ -520,19 +525,12 @@ GlText.normalViewport = false
 // size of an atlas
 GlText.maxAtlasSize = 1024
 
-// per gl-context storage
-GlText.shaderCache = new WeakMap
-
 // font atlas canvas is singleton
 GlText.atlasCanvas = document.createElement('canvas')
 GlText.atlasContext = GlText.atlasCanvas.getContext('2d', {alpha: false})
 
 // font-size used for metrics, atlas step calculation
 GlText.baseFontSize = 64
-
-// fontSize / atlasStep multiplier
-// FIXME: figure that out from line-height
-GlText.atlasStep = 1
 
 // fonts storage
 GlText.fonts = {}
