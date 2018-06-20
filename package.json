@@ -6,6 +6,7 @@
   "scripts": {
     "test": "budo --force-default-index test",
     "build": "buble index.js > dist.js",
+    "prepublish": "npm run build",
     "build-demo": "browserify test.js -g bubleify | indexhtmlify | metadataify | github-cornerify | mobilify > index.html"
   },
   "repository": {
