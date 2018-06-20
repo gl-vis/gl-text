@@ -10,6 +10,28 @@ const gl = require('gl-util/context')()
 const panzoom = require('pan-zoom')
 
 
+
+let canvas = document.body.appendChild(
+	document.createElement('canvas')
+)
+canvas.style.position = 'absolute'
+canvas.style.left = 0
+canvas.style.top = 0
+canvas.width = window.innerWidth
+canvas.height = window.innerHeight
+let ctx = canvas.getContext('2d')
+
+// +
+ctx.fillStyle = 'blue'
+ctx.fillRect(canvas.width / 2 - 25, canvas.height / 2, 100, 1)
+ctx.fillRect(canvas.width / 2, canvas.height / 2 - 25, 1, 50)
+// ctx.font = '48px Roboto'
+// ctx.textBaseline = 'top'
+// ctx.fillText('MiddleDitchThomas', canvas.width / 2, canvas.height / 2)
+
+
+
+
 let q = []
 
 
@@ -54,33 +76,17 @@ t('font', t => {
 })
 
 t('alignment', t => {
-	let canvas = document.body.appendChild(
-		document.createElement('canvas')
-	)
-	canvas.style.position = 'absolute'
-	canvas.style.left = 0
-	canvas.style.top = 0
-	canvas.width = window.innerWidth
-	canvas.height = window.innerHeight
-	let ctx = canvas.getContext('2d')
-
-	// +
-	ctx.fillStyle = 'blue'
-	ctx.fillRect(canvas.width / 2 - 25, canvas.height / 2, 100, 1)
-	ctx.fillRect(canvas.width / 2, canvas.height / 2 - 25, 1, 50)
-	// ctx.font = '48px Roboto'
-	// ctx.textBaseline = 'top'
-	// ctx.fillText('MiddleDitchThomas', canvas.width / 2, canvas.height / 2)
-
 	q.push(new Text({
 		gl,
+		offset: .5,
 		baseline: 'top',
-		align: 0,//'left',
+		align: 'left',
 		color: 'black',
-		font: '48px Roboto',
+		font: 'Minion Pro',
 		position: [1, 1],
 		range: [0,0,2,2],
-		text: 'Middle'
+		text: 'Middle',
+		kerning: true
 	}))
 	t.end()
 })
@@ -109,7 +115,20 @@ t('color')
 
 t('baseline')
 
-t('kerning')
+t.skip('kerning', t => {
+	q.push(new Text({
+		gl,
+		offset: .5,
+		baseline: 'top',
+		align: 'left',
+		color: 'black',
+		font: 'Minion Pro',
+		position: [1, 1],
+		range: [0,0,2,2],
+		text: 'Middle',
+		kerning: true
+	}))
+})
 
 t('tracking (spacing)')
 
@@ -117,7 +136,27 @@ t('viewport')
 
 t('range')
 
-t('line breaks')
+t.only('offset', t => {
+	// numeric offset
+	q.push(new Text({
+		gl,
+		text: 'Offset',
+		range: [0,0,1,1],
+		position: [.5,.5],
+		fontSize: 24,
+		offset: 0
+	}))
+
+	// array offset
+	q.push(new Text({
+		gl,
+		text: 'Line2',
+		range: [0,0,1,1],
+		position: [.5,.5],
+		fontSize: 24,
+		offset: [0, 1]
+	}))
+})
 
 t('ignore spaces')
 
@@ -169,8 +208,7 @@ q.render = function (opts) {
 
 setTimeout(() => {
 	let vp = q[0].viewport
-	// let range = q[0].range
-	let range = [vp.x, vp.y, vp.x + vp.width, vp.y + vp.height]
+	let range = q[0].range || [vp.x, vp.y, vp.x + vp.width, vp.y + vp.height]
 	q.render()
 
 	panzoom(document.body, e => {

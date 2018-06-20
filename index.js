@@ -39,14 +39,11 @@ class GlText {
 				attribute float width, charOffset, char;
 				uniform float fontSize, charStep, em, align, baseline;
 				uniform vec4 viewport;
-				uniform vec2 position, atlasSize, atlasDim, scale, translate;
+				uniform vec2 position, atlasSize, atlasDim, scale, translate, offset;
 				varying vec2 charCoord, charId;
 				varying float charWidth;
 				void main () {
-					vec2 offset = vec2(
-						floor(em * (align + charOffset) + .5) / (viewport.z * scale.x),
-						baseline / (viewport.w * scale.y)
-					);
+					vec2 offset = floor(em * (vec2(align + charOffset, baseline) + offset)) / (viewport.zw * scale.xy);
 					vec2 position = (position + translate) * scale;
 					position += offset * scale;
 
@@ -97,7 +94,7 @@ class GlText {
 					// float colorY = lightness(fontColor);
 					fontColor.a *= maskY;
 
-					fontColor.a += .1;
+					fontColor.a += .05;
 
 					// antialiasing, see yiq color space y-channel formula
 					// fontColor.rgb += (1. - fontColor.rgb) * (1. - mask.rgb);
@@ -151,7 +148,8 @@ class GlText {
 					translate: regl.this('translate'),
 					charStep: function () {
 						return this.fontAtlas.step
-					}
+					},
+					offset: regl.this('offset')
 				},
 				primitive: 'points',
 				count: regl.this('count'),
@@ -183,7 +181,7 @@ class GlText {
 
 		// FIXME: make this a static transform or more general approact
 		o = pick(o, {
-			font: 'font fontFace fontface typeface cssFont css-font',
+			font: 'font fontFace fontface typeface cssFont css-font family fontFamily',
 			fontSize: 'fontSize fontsize size font-size',
 			text: 'text value symbols',
 			align: 'align alignment textAlign textbaseline',
@@ -226,6 +224,15 @@ class GlText {
 
 		if (o.kerning != null) this.kerning = o.kerning
 
+		if (o.offset != null) {
+			if (typeof o.offset === 'number') this.offset = [o.offset, 0]
+			else this.offset = o.offset
+
+			if (!GlText.normalViewport) {
+				this.offset[1] *= -1
+			}
+		}
+
 		if (o.direction) this.direction = o.direction
 
 		if (o.position) this.position = o.position
@@ -243,13 +250,19 @@ class GlText {
 
 		if (!this.translate) this.translate = [0, 0]
 
-		if (!this.font && !o.font) o.font = '16px sans-serif'
+		if (!this.font && !o.font) o.font = GlText.baseFontSize + 'px sans-serif'
 
 		// normalize font caching string
 		let newFont = false, newFontSize = false
 
 		// normalize font
-		if (typeof o.font === 'string') o.font = Font.parse(o.font)
+		if (typeof o.font === 'string') {
+			try {
+				o.font = Font.parse(o.font)
+			} catch (e) {
+				o.font = Font.parse(GlText.baseFontSize + 'px ' + o.font)
+			}
+		}
 		else if (o.font) o.font = Font.parse(Font.stringify(o.font))
 
 		// obtain new font data
@@ -379,7 +392,9 @@ class GlText {
 						for (let baseChar in this.font.width) {
 							pairs.push(baseChar + char, char + baseChar)
 						}
-						extend(this.font.kerning, kerning(this.font.family, pairs))
+						extend(this.font.kerning, kerning(this.font.family, {
+							pairs
+						}))
 					}
 				}
 			}
@@ -463,16 +478,20 @@ class GlText {
 			this.alignOffset = alignOffset(this.align, this.textWidth)
 		}
 
+		if (this.baseline == null && o.baseline == null) {
+			o.baseline = 0
+		}
+
 		if (o.baseline != null) {
 			this.baseline = o.baseline
 			let m = this.font.metrics
 			let base = 0
-			base += m.bottom * this.fontSize * .5
+			base += m.bottom * .5
 			if (typeof this.baseline === 'number') {
-				base += (this.baseline - m.baseline) * this.fontSize
+				base += (this.baseline - m.baseline)
 			}
 			else {
-				base += -m[this.baseline] * this.fontSize
+				base += -m[this.baseline]
 			}
 			if (!GlText.normalViewport) base *= -1
 			this.baselineOffset = base
@@ -492,7 +511,6 @@ GlText.prototype.position = [0, 0]
 GlText.prototype.translate = null
 GlText.prototype.scale = null
 GlText.prototype.font = null
-GlText.prototype.baselineOffset = 0
 GlText.prototype.text = ''
 
 
