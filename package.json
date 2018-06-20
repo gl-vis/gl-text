@@ -1,10 +1,11 @@
 {
-  "name": "regl-text",
+  "name": "gl-text",
   "version": "1.0.0",
   "description": "Render text in WebGL",
-  "main": "./index.js",
+  "main": "dist.js",
   "scripts": {
     "test": "budo --force-default-index test",
+    "bundle": "buble index.js > dist.js",
     "build": "browserify test.js -g bubleify | indexhtmlify | metadataify | github-cornerify | mobilify > index.html"
   },
   "repository": {
@@ -14,7 +15,10 @@
   "keywords": [
     "regl",
     "plotly",
-    "text"
+    "text",
+    "gl-text",
+    "typography",
+    "font"
   ],
   "browserify": {},
   "author": "Dmitry Yv <df.creative@gmail.com>",
@@ -41,6 +45,7 @@
     "typedarray-pool": "^1.1.0"
   },
   "devDependencies": {
+    "buble": "^0.19.3",
     "fps-indicator": "^1.2.1",
     "multi-regl": "^1.1.1",
     "pan-zoom": "^3.1.0",
