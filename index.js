@@ -97,7 +97,7 @@ class GlText {
 					// float colorY = lightness(fontColor);
 					fontColor.a *= maskY;
 
-					fontColor.a += .1;
+					// fontColor.a += .1;
 
 					// antialiasing, see yiq color space y-channel formula
 					// fontColor.rgb += (1. - fontColor.rgb) * (1. - mask.rgb);
