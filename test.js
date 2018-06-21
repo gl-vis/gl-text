@@ -4,7 +4,7 @@ document.body.style.margin = '0'
 
 
 const t = require('tape')
-const Text = require('./')
+const Text = require('./index')
 const fps = require('fps-indicator')()
 const gl = require('gl-util/context')()
 const panzoom = require('pan-zoom')

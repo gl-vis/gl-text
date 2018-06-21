@@ -78,9 +78,11 @@ class GlText {
 				}
 
 				void main () {
+					vec2 uv = floor(gl_FragCoord.xy - charCoord + charStep * .5);
 					float halfCharStep = floor(charStep * .5 + .5);
-					vec2 uv = floor(gl_FragCoord.xy - charCoord + halfCharStep);
-					uv.y = charStep - uv.y;
+
+					// invert y and shift by 1px (FF expecially needs that)
+					uv.y = charStep - uv.y - .5;
 
 					// ignore points outside of character bounding box
 					float halfCharWidth = ceil(charWidth * .5);
@@ -464,7 +466,6 @@ class GlText {
 				this.fontAtlas.height = atlasHeight;
 				this.fontAtlas.rows = rows
 				this.fontAtlas.cols = cols
-
 				this.fontAtlas.texture({
 					data: fontAtlas({
 						canvas: GlText.atlasCanvas,
