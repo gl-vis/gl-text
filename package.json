@@ -31,7 +31,7 @@
   "dependencies": {
     "color-normalize": "^1.0.3",
     "css-font": "^1.2.0",
-    "detect-kerning": "^2.1.1",
+    "detect-kerning": "^2.1.2",
     "es6-weak-map": "^2.0.2",
     "font-atlas": "^2.1.0",
     "font-measure": "^1.2.0",
