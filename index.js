@@ -229,7 +229,7 @@ class GlText {
 
 		if (o.offset != null) {
 			if (typeof o.offset === 'number') this.offset = [o.offset, 0]
-			else this.offset = o.offset
+			else this.offset = o.offset.slice()
 
 			if (!GlText.normalViewport) {
 				this.offset[1] *= -1
@@ -485,7 +485,6 @@ class GlText {
 		if (this.baseline == null && o.baseline == null) {
 			o.baseline = 0
 		}
-
 		if (o.baseline != null) {
 			this.baseline = o.baseline
 			let m = this.font.metrics

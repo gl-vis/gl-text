@@ -199,6 +199,10 @@ t.skip('Augment chars', t => {
 	t.end()
 })
 
+t.skip('updating offset twice does not invert sing', t => {
+	t.end()
+})
+
 
 
 q.render = function (opts) {
