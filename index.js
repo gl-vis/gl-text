@@ -15,7 +15,6 @@ let px = require('to-px')
 let kerning = require('detect-kerning')
 let extend = require('object-assign')
 let metrics = require('font-measure')
-let flatten = require('flatten-vertex-data')
 
 
 let shaderCache = new WeakMap
@@ -45,14 +44,10 @@ class GlText {
 
 		if (!this.shader) {
 			this.shader = this.createShader()
-
 			shaderCache.set(this.gl, this.shader)
 		}
 
-		this.batch = null
-		this.render = function () {
-			this.shader.draw.call(this, this.batch)
-		}
+		this.render = this.shader.draw.bind(this)
 		this.canvas = this.gl.canvas
 
 		this.update(isObj(o) ? o : {})
@@ -66,9 +61,10 @@ class GlText {
 			vert: `
 			precision highp float;
 			attribute float width, charOffset, char;
+			attribute vec2 position;
 			uniform float fontSize, charStep, em, align, baseline;
 			uniform vec4 viewport;
-			uniform vec2 position, atlasSize, atlasDim, scale, translate, offset;
+			uniform vec2 atlasSize, atlasDim, scale, translate, offset;
 			varying vec2 charCoord, charId;
 			varying float charWidth;
 			void main () {
@@ -158,10 +154,10 @@ class GlText {
 					offset: 0,
 					stride: 8,
 					buffer: this.sizeBuffer
-				}
+				},
+				position: regl.this('position')
 			},
 			uniforms: {
-				position: regl.prop('position'),
 				atlasSize: () => [this.fontAtlas.width, this.fontAtlas.height],
 				atlasDim: () =>	[this.fontAtlas.cols, this.fontAtlas.rows],
 				fontSize: regl.this('fontSize'),
@@ -176,8 +172,7 @@ class GlText {
 				charStep: () => this.fontAtlas.step,
 				offset: regl.this('offset')
 			},
-			offset: regl.prop('offset'),
-			count: regl.prop('count'),
+			count: regl.this('count'),
 			primitive: 'points',
 			viewport: regl.this('viewport')
 		})
@@ -248,18 +243,6 @@ class GlText {
 		}
 
 		if (o.direction) this.direction = o.direction
-
-		if (o.position) {
-			pool.freeFloat(this.position)
-			let len
-			if (o.position[0].length) {
-				len = o.position.length * 2
-			}
-			else {
-				len = o.position.length
-			}
-			this.position = flatten(o.position, pool.mallocFloat(len))
-		}
 
 		if (o.range) {
 			this.range = o.range
@@ -389,6 +372,7 @@ class GlText {
 		}
 
 		// calculate offsets for the new font/text
+		let newAtlasChars
 		if (o.text != null || newFont) {
 			// FIXME: ignore spaces
 			// text offsets within the text buffer
@@ -409,7 +393,7 @@ class GlText {
 				this.counts = [this.count]
 			}
 
-			let newAtlasChars = []
+			newAtlasChars = []
 
 			// detect & measure new characters
 			GlText.atlasContext.font = this.font.baseString
@@ -438,39 +422,83 @@ class GlText {
 					}
 				}
 			}
+		}
 
-			// populate text/offset buffers
-			// as [charWidth, offset, charWidth, offset...]
-			// that is in em units since font-size can change often
-			let charIds = pool.mallocUint8(this.count)
-			let sizeData = pool.mallocFloat(this.count * 2)
-			for (let i = 0; i < this.count; i++) {
-				let char = this.text.charAt(i)
-				let prevChar = this.text.charAt(i - 1)
-
-				charIds[i] = this.fontAtlas.ids[char]
-				sizeData[i * 2] = this.font.width[char]
-
-				if (i) {
-					let prevWidth = sizeData[i * 2 - 2]
-					let currWidth = sizeData[i * 2]
-					let prevOffset = sizeData[i * 2 - 1]
-					let offset = prevOffset + prevWidth * .5 + currWidth * .5;
-
-					if (this.kerning) {
-						let kerning = this.font.kerning[prevChar + char]
-						if (kerning) {
-							offset += kerning * 1e-3
+		// create single position buffer (faster than batch or multiple separate instances)
+		if (o.position) {
+			if (o.position.length > 2) {
+				let flat = !o.position[0].length
+				let positionData = pool.mallocFloat(this.count * 2)
+				for (let i = 0, ptr = 0; i < this.counts.length; i++) {
+					let count = this.counts[i]
+					if (flat) {
+						for (let j = 0; j < count; j++) {
+							positionData[ptr++] = o.position[i * 2]
+							positionData[ptr++] = o.position[i * 2 + 1]
 						}
 					}
-
-					sizeData[i * 2 + 1] = offset
+					else {
+						for (let j = 0; j < count; j++) {
+							positionData[ptr++] = o.position[i][0]
+							positionData[ptr++] = o.position[i][1]
+						}
+					}
 				}
-				else {
-					sizeData[1] = sizeData[0] * .5
+				if (this.position.call) {
+					this.position(positionData)
+				} else {
+					this.position = this.regl.buffer(positionData)
+				}
+				pool.freeFloat(positionData)
+			}
+			else {
+				if (this.position.destroy) this.position.destroy()
+				this.position = {
+					constant: o.position
+				}
+			}
+		}
+
+		// populate text/offset buffers if font/text has changed
+		// as [charWidth, offset, charWidth, offset...]
+		// that is in em units since font-size can change often
+		if (o.text || newFont) {
+			let charIds = pool.mallocUint8(this.count)
+			let sizeData = pool.mallocFloat(this.count * 2)
+
+			for (let i = 0, ptr = 0; i < this.counts.length; i++) {
+				let count = this.counts[i]
+				for (let j = 0; j < count; j++) {
+					let char = this.text.charAt(ptr)
+					let prevChar = this.text.charAt(ptr - 1)
+
+					charIds[ptr] = this.fontAtlas.ids[char]
+					sizeData[ptr * 2] = this.font.width[char]
+
+					if (j) {
+						let prevWidth = sizeData[ptr * 2 - 2]
+						let currWidth = sizeData[ptr * 2]
+						let prevOffset = sizeData[ptr * 2 - 1]
+						let offset = prevOffset + prevWidth * .5 + currWidth * .5;
+
+						if (this.kerning) {
+							let kerning = this.font.kerning[prevChar + char]
+							if (kerning) {
+								offset += kerning * 1e-3
+							}
+						}
+
+						sizeData[ptr * 2 + 1] = offset
+					}
+					else {
+						sizeData[ptr * 2 + 1] = sizeData[ptr * 2] * .5
+					}
+
+					ptr++
 				}
 			}
 
+			// FIXME: multiple alignments?
 			if (this.count) {
 				this.textWidth = (sizeData[sizeData.length - 2] * .5 + sizeData[sizeData.length - 1])
 			} else {
@@ -516,7 +544,6 @@ class GlText {
 			this.align = o.align
 			this.alignOffset = alignOffset(this.align, this.textWidth)
 		}
-
 		if (this.baseline == null && o.baseline == null) {
 			o.baseline = 0
 		}
@@ -533,19 +560,6 @@ class GlText {
 			}
 			if (!GlText.normalViewport) base *= -1
 			this.baselineOffset = base
-		}
-
-		// update render batch
-		if (o.position || o.text) {
-			this.batch = Array(Math.max(this.position.length >> 1, this.textOffsets.length))
-			for (let i = 0; i < this.position.length; i += 2) {
-				let idx = i >> 1
-				this.batch[idx] = {
-					position: this.position.subarray(i, i + 2),
-					count: this.counts[idx],
-					offset: this.textOffsets[idx]
-				}
-			}
 		}
 	}
 

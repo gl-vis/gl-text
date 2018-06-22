@@ -92,18 +92,19 @@ t('alignment', t => {
 })
 
 t.only('1e6 letters', t => {
-	let chars = 'abc'
+	let chars = 'a'
 
 	let positions = [], text = []
 
 	for (let i = 0; i < 1e2; i++) {
 		for (let j = 0; j < 1e2; j++) {
 			text.push(chars)
-			positions.push([i * 10, j * 10])
+			positions.push(Math.random(), Math.random())
 		}
 	}
 
 	q.push(new Text({
+		font: '64px Roboto',
 		gl,
 		positions,
 		text

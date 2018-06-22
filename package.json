@@ -33,7 +33,6 @@
     "css-font": "^1.2.0",
     "detect-kerning": "^2.1.2",
     "es6-weak-map": "^2.0.2",
-    "flatten-vertex-data": "^1.0.2",
     "font-atlas": "^2.1.0",
     "font-measure": "^1.2.0",
     "gl-util": "^3.0.7",
