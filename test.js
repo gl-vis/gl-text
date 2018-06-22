@@ -92,19 +92,19 @@ t('alignment', t => {
 })
 
 t.only('1e6 letters', t => {
-	let chars = 'a'
+	let chars = 'abc'
 
 	let positions = [], text = []
 
 	for (let i = 0; i < 1e2; i++) {
 		for (let j = 0; j < 1e2; j++) {
 			text.push(chars)
-			positions.push(Math.random(), Math.random())
+			positions.push([i * 10, j * 10])
 		}
 	}
 
 	q.push(new Text({
-		font: '64px Roboto',
+		font: '16px Roboto',
 		gl,
 		positions,
 		text
@@ -120,6 +120,19 @@ t('spacing', t => {
 t('color')
 
 t('baseline')
+
+t.only('array align, position, color, baseline, font', t => {
+	let t = new Text(gl)
+
+	t.update({
+		text: ['Hello', 'Big', 'World!'],
+		position: [0,50, 100,50, 200,50],
+		color: [0x0000ff, 0x00ff00, 0xff0000],
+		baseline: ['top', 'middle', 'bottom'],
+		align: ['left', 'center', 'right'],
+		font: ['sans-serif', 'serif', 'monospace']
+	})
+})
 
 t.skip('kerning', t => {
 	q.push(new Text({
