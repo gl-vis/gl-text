@@ -91,18 +91,23 @@ t('alignment', t => {
 	t.end()
 })
 
-t.skip('1e6 letters', t => {
+t.only('1e6 letters', t => {
 	let chars = 'abc'
+
+	let positions = [], text = []
 
 	for (let i = 0; i < 1e2; i++) {
 		for (let j = 0; j < 1e2; j++) {
-			q.push(new Text({
-				gl,
-				text: chars,
-				position: [i * 10, j * 10]
-			}))
+			text.push(chars)
+			positions.push([i * 10, j * 10])
 		}
 	}
+
+	q.push(new Text({
+		gl,
+		positions,
+		text
+	}))
 })
 
 t('changing font-size does not trigger text offsets recalc')

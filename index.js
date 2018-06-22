@@ -15,6 +15,7 @@ let px = require('to-px')
 let kerning = require('detect-kerning')
 let extend = require('object-assign')
 let metrics = require('font-measure')
+let flatten = require('flatten-vertex-data')
 
 
 let shaderCache = new WeakMap
@@ -30,154 +31,161 @@ class GlText {
 			this.gl = createGl(o)
 		}
 
-		let shader = shaderCache.get(this.gl)
+		this.shader = shaderCache.get(this.gl)
 
-		if (!shader) {
-			let regl = o.regl || createRegl({ gl: this.gl })
-
-			// draw texture method
-			let draw = regl({
-				vert: `
-				precision highp float;
-				attribute float width, charOffset, char;
-				uniform float fontSize, charStep, em, align, baseline;
-				uniform vec4 viewport;
-				uniform vec2 position, atlasSize, atlasDim, scale, translate, offset;
-				varying vec2 charCoord, charId;
-				varying float charWidth;
-				void main () {
-					vec2 offset = floor(em * (vec2(align + charOffset, baseline) + offset)) / (viewport.zw * scale.xy);
-					vec2 position = (position + translate) * scale;
-					position += offset * scale;
-
-					${ GlText.normalViewport ? 'position.y = 1. - position.y;' : '' }
-
-					charCoord = position * viewport.zw + viewport.xy;
-
-					gl_Position = vec4(position * 2. - 1., 0, 1);
-
-					gl_PointSize = charStep;
-
-					charId.x = mod(char, atlasDim.x);
-					charId.y = floor(char / atlasDim.x);
-
-					charWidth = width * em;
-				}`,
-
-				frag: `
-				precision highp float;
-				uniform sampler2D atlas;
-				uniform vec4 color;
-				uniform float fontSize, charStep;
-				uniform vec2 atlasSize;
-				varying vec2 charCoord, charId;
-				varying float charWidth;
-
-				float lightness(vec4 color) {
-					return color.r * 0.299 + color.g * 0.587 + color.b * 0.114;
-				}
-
-				void main () {
-					vec2 uv = floor(gl_FragCoord.xy - charCoord + charStep * .5);
-					float halfCharStep = floor(charStep * .5 + .5);
-
-					// invert y and shift by 1px (FF expecially needs that)
-					uv.y = charStep - uv.y - .5;
-
-					// ignore points outside of character bounding box
-					float halfCharWidth = ceil(charWidth * .5);
-					if (floor(uv.x) > halfCharStep + halfCharWidth ||
-						floor(uv.x) < halfCharStep - halfCharWidth) return;
-
-					uv += charId * charStep;
-					uv = uv / atlasSize;
-
-					vec4 fontColor = color;
-					vec4 mask = texture2D(atlas, uv);
-
-					float maskY = lightness(mask);
-					// float colorY = lightness(fontColor);
-					fontColor.a *= maskY;
-
-					// fontColor.a += .1;
-
-					// antialiasing, see yiq color space y-channel formula
-					// fontColor.rgb += (1. - fontColor.rgb) * (1. - mask.rgb);
-
-					gl_FragColor = fontColor;
-				}`,
-
-				blend: {
-					enable: true,
-					color: [0,0,0,1],
-
-					func: {
-						srcRGB: 'src alpha',
-						dstRGB: 'one minus src alpha',
-						srcAlpha: 'one minus dst alpha',
-						dstAlpha: 'one'
-					}
-				},
-				stencil: {enable: false},
-				depth: {enable: false},
-
-				attributes: {
-					char: regl.this('charBuffer'),
-					charOffset: {
-						offset: 4,
-						stride: 8,
-						buffer: regl.this('sizeBuffer')
-					},
-					width: {
-						offset: 0,
-						stride: 8,
-						buffer: regl.this('sizeBuffer')
-					}
-				},
-				uniforms: {
-					position: regl.this('position'),
-					atlasSize: function () {
-						return [this.fontAtlas.width, this.fontAtlas.height]
-					},
-					atlasDim: function () {
-						return [this.fontAtlas.cols, this.fontAtlas.rows]
-					},
-					fontSize: regl.this('fontSize'),
-					em: function () { return this.fontSize },
-					atlas: function () { return this.fontAtlas.texture },
-					viewport: regl.this('viewportArray'),
-					color: regl.this('color'),
-					scale: regl.this('scale'),
-					align: regl.this('alignOffset'),
-					baseline: regl.this('baselineOffset'),
-					translate: regl.this('translate'),
-					charStep: function () {
-						return this.fontAtlas.step
-					},
-					offset: regl.this('offset')
-				},
-				primitive: 'points',
-				count: regl.this('count'),
-				viewport: regl.this('viewport')
-			})
-
-			// per font-size atlas
-			let atlas = {}
-
-			shader = { regl, draw, atlas }
-
-			shaderCache.set(this.gl, shader)
+		if (!this.shader) {
+			this.regl = o.regl || createRegl({ gl: this.gl })
 		}
-
-		this.render = shader.draw.bind(this)
-		this.regl = shader.regl
-		this.canvas = this.gl.canvas
-		this.shader = shader
+		else {
+			this.regl = this.shader.regl
+		}
 
 		this.charBuffer = this.regl.buffer({ type: 'uint8', usage: 'stream' })
 		this.sizeBuffer = this.regl.buffer({ type: 'float', usage: 'stream' })
 
+		if (!this.shader) {
+			this.shader = this.createShader()
+
+			shaderCache.set(this.gl, this.shader)
+		}
+
+		this.batch = null
+		this.render = function () {
+			this.shader.draw.call(this, this.batch)
+		}
+		this.canvas = this.gl.canvas
+
 		this.update(isObj(o) ? o : {})
+	}
+
+	createShader () {
+		let regl = this.regl
+
+		// draw texture method
+		let draw = regl({
+			vert: `
+			precision highp float;
+			attribute float width, charOffset, char;
+			uniform float fontSize, charStep, em, align, baseline;
+			uniform vec4 viewport;
+			uniform vec2 position, atlasSize, atlasDim, scale, translate, offset;
+			varying vec2 charCoord, charId;
+			varying float charWidth;
+			void main () {
+				vec2 offset = floor(em * (vec2(align + charOffset, baseline) + offset)) / (viewport.zw * scale.xy);
+				vec2 position = (position + translate) * scale;
+				position += offset * scale;
+
+				${ GlText.normalViewport ? 'position.y = 1. - position.y;' : '' }
+
+				charCoord = position * viewport.zw + viewport.xy;
+
+				gl_Position = vec4(position * 2. - 1., 0, 1);
+
+				gl_PointSize = charStep;
+
+				charId.x = mod(char, atlasDim.x);
+				charId.y = floor(char / atlasDim.x);
+
+				charWidth = width * em;
+			}`,
+
+			frag: `
+			precision highp float;
+			uniform sampler2D atlas;
+			uniform vec4 color;
+			uniform float fontSize, charStep;
+			uniform vec2 atlasSize;
+			varying vec2 charCoord, charId;
+			varying float charWidth;
+
+			float lightness(vec4 color) {
+				return color.r * 0.299 + color.g * 0.587 + color.b * 0.114;
+			}
+
+			void main () {
+				vec2 uv = floor(gl_FragCoord.xy - charCoord + charStep * .5);
+				float halfCharStep = floor(charStep * .5 + .5);
+
+				// invert y and shift by 1px (FF expecially needs that)
+				uv.y = charStep - uv.y - .5;
+
+				// ignore points outside of character bounding box
+				float halfCharWidth = ceil(charWidth * .5);
+				if (floor(uv.x) > halfCharStep + halfCharWidth ||
+					floor(uv.x) < halfCharStep - halfCharWidth) return;
+
+				uv += charId * charStep;
+				uv = uv / atlasSize;
+
+				vec4 fontColor = color;
+				vec4 mask = texture2D(atlas, uv);
+
+				float maskY = lightness(mask);
+				// float colorY = lightness(fontColor);
+				fontColor.a *= maskY;
+
+				// fontColor.a += .1;
+
+				// antialiasing, see yiq color space y-channel formula
+				// fontColor.rgb += (1. - fontColor.rgb) * (1. - mask.rgb);
+
+				gl_FragColor = fontColor;
+			}`,
+
+			blend: {
+				enable: true,
+				color: [0,0,0,1],
+
+				func: {
+					srcRGB: 'src alpha',
+					dstRGB: 'one minus src alpha',
+					srcAlpha: 'one minus dst alpha',
+					dstAlpha: 'one'
+				}
+			},
+			stencil: {enable: false},
+			depth: {enable: false},
+
+			attributes: {
+				char: this.charBuffer,
+				charOffset: {
+					offset: 4,
+					stride: 8,
+					buffer: this.sizeBuffer
+				},
+				width: {
+					offset: 0,
+					stride: 8,
+					buffer: this.sizeBuffer
+				}
+			},
+			uniforms: {
+				position: regl.prop('position'),
+				atlasSize: () => [this.fontAtlas.width, this.fontAtlas.height],
+				atlasDim: () =>	[this.fontAtlas.cols, this.fontAtlas.rows],
+				fontSize: regl.this('fontSize'),
+				em: () => this.fontSize,
+				atlas: () => this.fontAtlas.texture,
+				viewport: regl.this('viewportArray'),
+				color: regl.this('color'),
+				scale: regl.this('scale'),
+				align: regl.this('alignOffset'),
+				baseline: regl.this('baselineOffset'),
+				translate: regl.this('translate'),
+				charStep: () => this.fontAtlas.step,
+				offset: regl.this('offset')
+			},
+			offset: regl.prop('offset'),
+			count: regl.prop('count'),
+			primitive: 'points',
+			viewport: regl.this('viewport')
+		})
+
+		// per font-size atlas
+		let atlas = {}
+
+		return { regl, draw, atlas }
 	}
 
 	update (o) {
@@ -186,9 +194,10 @@ class GlText {
 
 		// FIXME: make this a static transform or more general approact
 		o = pick(o, {
+			position: 'position positions coord coords coordinates',
 			font: 'font fontFace fontface typeface cssFont css-font family fontFamily',
 			fontSize: 'fontSize fontsize size font-size',
-			text: 'text value symbols',
+			text: 'text texts chars characters value values symbols',
 			align: 'align alignment textAlign textbaseline',
 			baseline: 'baseline textBaseline textbaseline',
 			direction: 'dir direction textDirection',
@@ -240,7 +249,17 @@ class GlText {
 
 		if (o.direction) this.direction = o.direction
 
-		if (o.position) this.position = o.position
+		if (o.position) {
+			pool.freeFloat(this.position)
+			let len
+			if (o.position[0].length) {
+				len = o.position.length * 2
+			}
+			else {
+				len = o.position.length
+			}
+			this.position = flatten(o.position, pool.mallocFloat(len))
+		}
 
 		if (o.range) {
 			this.range = o.range
@@ -372,8 +391,23 @@ class GlText {
 		// calculate offsets for the new font/text
 		if (o.text != null || newFont) {
 			// FIXME: ignore spaces
-			this.text = o.text
-			this.count = o.text.length
+			// text offsets within the text buffer
+			this.textOffsets = [0]
+			if (Array.isArray(o.text)) {
+				this.count = o.text[0].length
+				this.counts = [this.count]
+				for (let i = 1; i < o.text.length; i++) {
+					this.textOffsets[i] = this.textOffsets[i - 1] + o.text[i - 1].length
+					this.count += o.text[i].length
+					this.counts.push(o.text[i].length)
+				}
+				this.text = o.text.join('')
+			}
+			else {
+				this.text = o.text
+				this.count = this.text.length
+				this.counts = [this.count]
+			}
 
 			let newAtlasChars = []
 
@@ -500,6 +534,19 @@ class GlText {
 			if (!GlText.normalViewport) base *= -1
 			this.baselineOffset = base
 		}
+
+		// update render batch
+		if (o.position || o.text) {
+			this.batch = Array(Math.max(this.position.length >> 1, this.textOffsets.length))
+			for (let i = 0; i < this.position.length; i += 2) {
+				let idx = i >> 1
+				this.batch[idx] = {
+					position: this.position.subarray(i, i + 2),
+					count: this.counts[idx],
+					offset: this.textOffsets[idx]
+				}
+			}
+		}
 	}
 
 	destroy () {
@@ -511,7 +558,7 @@ class GlText {
 // defaults
 GlText.prototype.kerning = true
 GlText.prototype.color = [0, 0, 0, 1]
-GlText.prototype.position = [0, 0]
+GlText.prototype.position = new Float32Array(2)
 GlText.prototype.translate = null
 GlText.prototype.scale = null
 GlText.prototype.font = null

@@ -49,8 +49,8 @@ Update state of a `Text` instance.
 
 Option | Description
 ---|---
-`text` | Text string to print.
-`position` | Position of the text on the screen or within the `range`, a couple `[x, y]`.
+`text` | Text string to print or array of strings.
+`position` | Position of the text on the screen or within the `range`, a couple `[x, y]` or array `[[x ,y], [x, y], ...]`.
 `align` | Horizontal alignment relative to the `position`. Can be one of `left`, `right`, `center`/`middle`, `start`, `end`, or a number of em units. By default `left`.
 `baseline` | Vertical alignment value, by default `middle`. Can be a string one of `top`, `hanging`, `middle`, `alphabetic`, `ideographic`, `bottom` etc. (see [font-measure](https://ghub.io/font-measure)) or a number of em units, denoting `0` as alphabetic baseline.
 `font` | Font family, CSS font string or an object with font properties like `{family, size, style}`, see [css-font](https://ghub.io/css-font).
