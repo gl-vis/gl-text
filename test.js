@@ -14,7 +14,7 @@ const panzoom = require('pan-zoom')
 let q = []
 
 
-t.skip('font', t => {
+t('font', t => {
 	let matrix = []
 
 	let family = ['Roboto', 'sans-serif']
@@ -54,7 +54,7 @@ t.skip('font', t => {
 	t.end()
 })
 
-t.skip('alignment', t => {
+t('alignment', t => {
 	q.push(new Text({
 		gl,
 		offset: .5,
@@ -70,7 +70,7 @@ t.skip('alignment', t => {
 	t.end()
 })
 
-t.skip('1e6 letters', t => {
+t.only('1e6 letters', t => {
 	let chars = 'abc'
 
 	let positions = [], text = []
@@ -140,7 +140,7 @@ t('viewport')
 
 t('range')
 
-t.only('offset', t => {
+t.skip('offset', t => {
 	// numeric offset
 	q.push(new Text({
 		gl,

@@ -54,8 +54,10 @@ class GlText {
 		this.font = []
 		this.fontAtlas = []
 
+		this.draw = this.shader.draw.bind(this)
 		this.render = function () {
-			this.shader.draw.call(this, this.batch)
+			this.regl._refresh()
+			this.draw(this.batch)
 		}
 		this.canvas = this.gl.canvas
 
@@ -84,27 +86,26 @@ class GlText {
 			count: regl.prop('count'),
 			offset: regl.prop('offset'),
 			attributes: {
-				char: this.charBuffer,
+				char: regl.this('charBuffer'),
 				charOffset: {
 					offset: 4,
 					stride: 8,
-					buffer: this.sizeBuffer
+					buffer: regl.this('sizeBuffer')
 				},
 				width: {
 					offset: 0,
 					stride: 8,
-					buffer: this.sizeBuffer
+					buffer: regl.this('sizeBuffer')
 				},
 				position: regl.this('position')
 			},
 			uniforms: {
-				atlasSize: regl.prop('atlasSize'),
-				atlasDim: regl.prop('atlasDim'),
-				em: regl.prop('em'),
-				atlas: regl.prop('atlas'),
-				charStep: regl.prop('charStep'),
+				atlasSize: (c, p) => [p.atlas.width, p.atlas.height],
+				atlasDim: (c, p) => [p.atlas.cols, p.atlas.rows],
+				atlas: (c, p) => p.atlas.texture,
+				charStep: (c, p) => p.atlas.step,
+				em: (c, p) => p.atlas.em,
 				color: regl.prop('color'),
-				fontSize: regl.this('fontSize'),
 				viewport: regl.this('viewportArray'),
 				scale: regl.this('scale'),
 				align: regl.prop('align'),
@@ -152,6 +153,7 @@ class GlText {
 			uniform sampler2D atlas;
 			uniform float fontSize, charStep;
 			uniform vec2 atlasSize;
+			uniform vec4 viewport;
 			varying vec4 fontColor;
 			varying vec2 charCoord, charId;
 			varying float charWidth;
@@ -182,7 +184,7 @@ class GlText {
 				// float colorY = lightness(color);
 				color.a *= maskY;
 
-				color.a += .1;
+				// color.a += .1;
 
 				// antialiasing, see yiq color space y-channel formula
 				// color.rgb += (1. - color.rgb) * (1. - mask.rgb);
@@ -664,32 +666,22 @@ class GlText {
 						offset: this.textOffsets[i],
 						color: !this.color ? [0,0,0,255] : this.color.length <= 4 ? this.color : this.color.subarray(i * 4, i * 4 + 4),
 						baseline: this.baselineOffset[i] != null ? this.baselineOffset[i] : this.baselineOffset[0],
-						align: !this.align ? 0 : this.alignOffset[i] != null ? this.alignOffset[i] : this.alignOffset[0],
-
-						atlasSize: [atlas.width, atlas.height],
-						atlasDim: [atlas.cols, atlas.rows],
-						em: this.fontSize[i] != null ? this.fontSize[i] : this.fontSize[0],
-						atlas: atlas.texture,
-						charStep: atlas.step
+						align: !this.align ? 0 : this.alignOffset[i] != null ? this.alignOffset[i] : this.alignOffset[0]
 					}
 				}
 			}
 			// single-color, single-baseline, single-align batch is faster to render
 			else {
-				let atlas = this.fontAtlas[0]
-				this.batch = [{
-					count: this.count,
-					offset: 0,
-					color: this.color || [0,0,0,255],
-					baseline: this.baselineOffset[0],
-					align: this.alignOffset ? this.alignOffset[0] : 0,
-
-					atlasSize: [atlas.width, atlas.height],
-					atlasDim: [atlas.cols, atlas.rows],
-					em: this.fontSize[0],
-					atlas: atlas.texture,
-					charStep: atlas.step
-				}]
+				if (this.count) {
+					this.batch = [{
+						count: this.count,
+						offset: 0,
+						color: this.color || [0,0,0,255],
+						baseline: this.baselineOffset[0],
+						align: this.alignOffset ? this.alignOffset[0] : 0,
+						atlas: this.fontAtlas[0]
+					}]
+				}
 			}
 		}
 	}
