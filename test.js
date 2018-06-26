@@ -78,12 +78,13 @@ t('1e6 letters', t => {
 	for (let i = 0; i < 1e2; i++) {
 		for (let j = 0; j < 1e2; j++) {
 			text.push(chars)
-			positions.push([i * 10, j * 10])
+			positions.push([Math.random() * 1e3, Math.random() * 1e3])
 		}
 	}
 
 	q.push(new Text({
 		font: '16px Roboto',
+		color: 'black',
 		gl,
 		positions,
 		text
@@ -274,7 +275,6 @@ ctx.fillStyle = 'blue'
 ctx.fillRect(canvas.width / 2 - 25, canvas.height / 2, 100, 1)
 ctx.fillRect(canvas.width / 2, canvas.height / 2 - 25, 1, 50)
 
-ctx.fillRect(300, 550, 1, 50)
 // ctx.font = '48px Roboto'
 // ctx.textBaseline = 'top'
 // ctx.fillText('MiddleDitchThomas', canvas.width / 2, canvas.height / 2)

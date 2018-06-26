@@ -634,18 +634,29 @@ class GlText {
 		}
 
 		// update render batch
-		if (o.position || o.text || o.color || o.baseline) {
-			this.batch = Array(o.position.length)
-			let multiColor = this.color.length > 4
-			for (let i = 0; i < this.batch.length; i++) {
-				this.batch[i] = {
-					count: this.counts[i],
-					offset: this.textOffsets[i],
-					color: !multiColor ? this.color : this.color.subarray(i * 4, i * 4 + 4),
-					baseline: this.baselineOffset[i] != null ? this.baselineOffset[i] : this.baselineOffset[0],
-					align: this.alignOffset[i] != null ? this.alignOffset[i] : this.alignOffset[0] || 0
-					// font:
+		if (o.position || o.text || o.color || o.baseline || o.align) {
+			if (Array.isArray(o.color) || Array.isArray(o.baseline) || Array.isArray(o.align)) {
+				this.batch = Array(o.text.length)
+				for (let i = 0; i < this.batch.length; i++) {
+					this.batch[i] = {
+						count: this.counts[i],
+						offset: this.textOffsets[i],
+						color: !this.color ? [0,0,0,255] : this.color.length <= 4 ? this.color : this.color.subarray(i * 4, i * 4 + 4),
+						baseline: this.baselineOffset[i] != null ? this.baselineOffset[i] : this.baselineOffset[0],
+						align: !this.align ? 0 : this.alignOffset[i] != null ? this.alignOffset[i] : this.alignOffset[0]
+						// font:
+					}
 				}
+			}
+			// single-color, single-baseline, single-align batch is faster to render
+			else {
+				this.batch = [{
+					count: this.count,
+					offset: 0,
+					color: this.color || [0,0,0,255],
+					baseline: this.baselineOffset[0],
+					align: this.alignOffset ? this.alignOffset[0] : 0
+				}]
 			}
 		}
 	}
@@ -658,7 +669,6 @@ class GlText {
 
 // defaults
 GlText.prototype.kerning = true
-GlText.prototype.color = { constant: [0, 0, 0, 1] }
 GlText.prototype.position = { constant: new Float32Array(2) }
 GlText.prototype.translate = null
 GlText.prototype.scale = null

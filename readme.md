@@ -51,9 +51,9 @@ Option | Description
 ---|---
 `text` 			| Text string or array of strings to display.								|
 `position` 		| Position of the text on the screen within the `range`, a couple `[x, y]` or array `[[x ,y], [x, y], ...]` corresponding to text.						|
-`align` 		| Horizontal alignment relative to the `position`. Can be one of `left`, `right`, `center`/`middle`, `start`, `end`, or a number of em units. By default `left`. Can be an array.													|
-`baseline` 		| Vertical alignment value, by default `middle`. Can be a string one of `top`, `hanging`, `middle`, `alphabetic`, `ideographic`, `bottom` etc. (see [font-measure](https://ghub.io/font-measure)) or a number of em units, denoting `0` as alphabetic baseline. Can be an array.								|
-`color` 		| Text color all array of colors. By default `black`.						|
+`align` 		| Horizontal alignment relative to the `position`. Can be one of `left`, `right`, `center`/`middle`, `start`, `end`, or a number of em units. By default `left`. Can be an array, corresponding to text.							|
+`baseline` 		| Vertical alignment value, by default `middle`. Can be a string one of `top`, `hanging`, `middle`, `alphabetic`, `ideographic`, `bottom` etc. (see [font-measure](https://ghub.io/font-measure)) or a number of em units, denoting `0` as alphabetic baseline. Can be an array corresponding to text.																							|
+`color` 		| Text color or array of colors. By default `black`.						|
 `font` 			| Font family, CSS font string or an object with font properties like `{family, size, style}`, see [css-font](https://ghub.io/css-font). Can be an array.																	|
 `fontSize`/`em` | Font-size, can be changed independently of `font`.						|
 `kerning` 		| Enable font kerning, by default `true`. Disable for the case of monospace fonts. See [detect-kerning](https://ghub.io/detect-kerning) package.																					|
