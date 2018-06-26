@@ -110,7 +110,8 @@ t.only('array align, position, color, baseline, font', t => {
 		color: [0xff0000, 0x00ff00, 0x0000ff],
 		// baseline: 'bottom',
 		baseline: ['top', 'middle', 'bottom'],
-		// align: ['left', 'center', 'right'],
+		// align: 'right',
+		align: ['left', 'center', 'right'],
 		// font: ['sans-serif', 'serif', 'monospace']
 	})
 
@@ -272,6 +273,8 @@ let ctx = canvas.getContext('2d')
 ctx.fillStyle = 'blue'
 ctx.fillRect(canvas.width / 2 - 25, canvas.height / 2, 100, 1)
 ctx.fillRect(canvas.width / 2, canvas.height / 2 - 25, 1, 50)
+
+ctx.fillRect(300, 550, 1, 50)
 // ctx.font = '48px Roboto'
 // ctx.textBaseline = 'top'
 // ctx.fillText('MiddleDitchThomas', canvas.width / 2, canvas.height / 2)

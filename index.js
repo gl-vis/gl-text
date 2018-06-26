@@ -102,7 +102,7 @@ class GlText {
 				atlas: () => this.fontAtlas.texture,
 				viewport: regl.this('viewportArray'),
 				scale: regl.this('scale'),
-				align: regl.this('alignOffset'),
+				align: regl.prop('align'),
 				baseline: regl.prop('baseline'),
 				translate: regl.this('translate'),
 				charStep: () => this.fontAtlas.step,
@@ -476,9 +476,11 @@ class GlText {
 		if (o.text || newFont) {
 			let charIds = pool.mallocUint8(this.count)
 			let sizeData = pool.mallocFloat(this.count * 2)
+			this.textWidth = []
 
 			for (let i = 0, ptr = 0; i < this.counts.length; i++) {
 				let count = this.counts[i]
+
 				for (let j = 0; j < count; j++) {
 					let char = this.text.charAt(ptr)
 					let prevChar = this.text.charAt(ptr - 1)
@@ -507,15 +509,16 @@ class GlText {
 
 					ptr++
 				}
+				this.textWidth.push(
+					!sizeData.length ? 0 :
+					// last offset + half last width
+					sizeData[ptr * 2 - 2] * .5 + sizeData[ptr * 2 - 1]
+				)
 			}
 
-			// FIXME: multiple alignments?
-			if (this.count) {
-				this.textWidth = (sizeData[sizeData.length - 2] * .5 + sizeData[sizeData.length - 1])
-			} else {
-				this.textWidth = 0
-			}
-			this.alignOffset = alignOffset(this.align, this.textWidth)
+
+			// bump recalc align offset
+			if (!o.align) o.align = this.align
 
 			this.charBuffer({data: charIds, type: 'uint8', usage: 'stream'})
 			this.sizeBuffer({data: sizeData, type: 'float', usage: 'stream'})
@@ -553,8 +556,25 @@ class GlText {
 
 		if (o.align) {
 			this.align = o.align
-			this.alignOffset = alignOffset(this.align, this.textWidth)
+
+			this.alignOffset = this.textWidth.map((textWidth, i) => {
+				let align = Array.isArray(this.align) ? this.align[i] : this.align
+
+				if (typeof align === 'number') return align
+				switch (align) {
+					case 'right':
+					case 'end':
+						return -textWidth
+					case 'center':
+					case 'centre':
+					case 'middle':
+						return -textWidth * .5
+				}
+
+				return 0
+			})
 		}
+
 		if (this.baseline == null && o.baseline == null) {
 			o.baseline = 0
 		}
@@ -622,8 +642,8 @@ class GlText {
 					count: this.counts[i],
 					offset: this.textOffsets[i],
 					color: !multiColor ? this.color : this.color.subarray(i * 4, i * 4 + 4),
-					baseline: this.baselineOffset[i] != null ? this.baselineOffset[i] : this.baselineOffset[0]
-					// align:
+					baseline: this.baselineOffset[i] != null ? this.baselineOffset[i] : this.baselineOffset[0],
+					align: this.alignOffset[i] != null ? this.alignOffset[i] : this.alignOffset[0] || 0
 					// font:
 				}
 			}
@@ -666,20 +686,6 @@ GlText.fonts = {}
 // max number of different font atlases/textures cached
 // FIXME: enable atlas size limitation via LRU
 // GlText.atlasCacheSize = 64
-
-function alignOffset (align, tw) {
-	if (typeof align === 'number') return align
-	switch (align) {
-		case 'right':
-		case 'end':
-			return -tw
-		case 'center':
-		case 'centre':
-		case 'middle':
-			return -tw * .5
-	}
-	return 0
-}
 
 function isRegl (o) {
 	return typeof o === 'function' &&
