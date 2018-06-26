@@ -11,27 +11,6 @@ const panzoom = require('pan-zoom')
 
 
 
-let canvas = document.body.appendChild(
-	document.createElement('canvas')
-)
-canvas.style.position = 'absolute'
-canvas.style.left = 0
-canvas.style.top = 0
-canvas.width = window.innerWidth
-canvas.height = window.innerHeight
-let ctx = canvas.getContext('2d')
-
-// +
-ctx.fillStyle = 'blue'
-ctx.fillRect(canvas.width / 2 - 25, canvas.height / 2, 100, 1)
-ctx.fillRect(canvas.width / 2, canvas.height / 2 - 25, 1, 50)
-// ctx.font = '48px Roboto'
-// ctx.textBaseline = 'top'
-// ctx.fillText('MiddleDitchThomas', canvas.width / 2, canvas.height / 2)
-
-
-
-
 let q = []
 
 
@@ -91,7 +70,7 @@ t('alignment', t => {
 	t.end()
 })
 
-t.only('1e6 letters', t => {
+t('1e6 letters', t => {
 	let chars = 'abc'
 
 	let positions = [], text = []
@@ -122,16 +101,21 @@ t('color')
 t('baseline')
 
 t.only('array align, position, color, baseline, font', t => {
-	let t = new Text(gl)
+	let text = new Text(gl)
 
-	t.update({
-		text: ['Hello', 'Big', 'World!'],
-		position: [0,50, 100,50, 200,50],
+	text.update({
+		text: ['red', 'green', 'blue'],
+		position: [[0,50], [150,50], [300,50]],
+		// color: 'green',
 		color: [0x0000ff, 0x00ff00, 0xff0000],
-		baseline: ['top', 'middle', 'bottom'],
-		align: ['left', 'center', 'right'],
-		font: ['sans-serif', 'serif', 'monospace']
+		// baseline: ['top', 'middle', 'bottom'],
+		// align: ['left', 'center', 'right'],
+		// font: ['sans-serif', 'serif', 'monospace']
 	})
+
+	q.push(text)
+
+	t.end()
 })
 
 t.skip('kerning', t => {
@@ -268,3 +252,26 @@ setTimeout(() => {
 		q.render({ range })
 	})
 }, 50)
+
+
+
+
+// center cross
+let canvas = document.body.appendChild(
+	document.createElement('canvas')
+)
+canvas.style.position = 'absolute'
+canvas.style.left = 0
+canvas.style.top = 0
+canvas.width = window.innerWidth
+canvas.height = window.innerHeight
+let ctx = canvas.getContext('2d')
+
+// +
+ctx.fillStyle = 'blue'
+ctx.fillRect(canvas.width / 2 - 25, canvas.height / 2, 100, 1)
+ctx.fillRect(canvas.width / 2, canvas.height / 2 - 25, 1, 50)
+// ctx.font = '48px Roboto'
+// ctx.textBaseline = 'top'
+// ctx.fillText('MiddleDitchThomas', canvas.width / 2, canvas.height / 2)
+

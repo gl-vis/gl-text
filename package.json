@@ -29,7 +29,7 @@
   },
   "homepage": "https://github.com/a-vis/gl-text#readme",
   "dependencies": {
-    "color-normalize": "^1.0.3",
+    "color-normalize": "^1.1.0",
     "css-font": "^1.2.0",
     "detect-kerning": "^2.1.2",
     "es6-weak-map": "^2.0.2",
