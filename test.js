@@ -14,7 +14,7 @@ const panzoom = require('pan-zoom')
 let q = []
 
 
-t('font', t => {
+t.skip('font', t => {
 	let matrix = []
 
 	let family = ['Roboto', 'sans-serif']
@@ -54,7 +54,7 @@ t('font', t => {
 	t.end()
 })
 
-t('alignment', t => {
+t.skip('alignment', t => {
 	q.push(new Text({
 		gl,
 		offset: .5,
@@ -70,7 +70,7 @@ t('alignment', t => {
 	t.end()
 })
 
-t('1e6 letters', t => {
+t.skip('1e6 letters', t => {
 	let chars = 'abc'
 
 	let positions = [], text = []
@@ -93,15 +93,13 @@ t('1e6 letters', t => {
 
 t('changing font-size does not trigger text offsets recalc')
 
-t('spacing', t => {
-	t.end()
-})
+t('spacing')
 
 t('color')
 
 t('baseline')
 
-t.only('array align, position, color, baseline, font', t => {
+t.skip('array align, position, color, baseline, font', t => {
 	let text = new Text(gl)
 
 	text.update({
@@ -113,7 +111,7 @@ t.only('array align, position, color, baseline, font', t => {
 		baseline: ['top', 'middle', 'bottom'],
 		// align: 'right',
 		align: ['left', 'center', 'right'],
-		// font: ['sans-serif', 'serif', 'monospace']
+		font: ['sans-serif', 'serif', 'monospace']
 	})
 
 	q.push(text)
@@ -142,7 +140,7 @@ t('viewport')
 
 t('range')
 
-t('offset', t => {
+t.only('offset', t => {
 	// numeric offset
 	q.push(new Text({
 		gl,
@@ -274,6 +272,8 @@ let ctx = canvas.getContext('2d')
 ctx.fillStyle = 'blue'
 ctx.fillRect(canvas.width / 2 - 25, canvas.height / 2, 100, 1)
 ctx.fillRect(canvas.width / 2, canvas.height / 2 - 25, 1, 50)
+
+// ctx.fillRect(0, canvas.height - 50, 100, 1)
 
 // ctx.font = '48px Roboto'
 // ctx.textBaseline = 'top'
