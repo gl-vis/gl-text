@@ -106,9 +106,10 @@ t.only('array align, position, color, baseline, font', t => {
 	text.update({
 		text: ['red', 'green', 'blue'],
 		position: [[0,50], [150,50], [300,50]],
-		// color: 'green',
-		color: [0x0000ff, 0x00ff00, 0xff0000],
-		// baseline: ['top', 'middle', 'bottom'],
+		// color: 0x00ff00,
+		color: [0xff0000, 0x00ff00, 0x0000ff],
+		// baseline: 'bottom',
+		baseline: ['top', 'middle', 'bottom'],
 		// align: ['left', 'center', 'right'],
 		// font: ['sans-serif', 'serif', 'monospace']
 	})

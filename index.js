@@ -51,7 +51,7 @@ class GlText {
 
 		// this.render = this.shader.draw.bind(this)
 		this.render = function () {
-			this.shader.draw.call(this, batch)
+			this.shader.draw.call(this, this.batch)
 		}
 		this.canvas = this.gl.canvas
 
@@ -77,7 +77,8 @@ class GlText {
 			stencil: {enable: false},
 			depth: {enable: false},
 
-			count: regl.this('count'),
+			count: regl.prop('count'),
+			offset: regl.prop('offset'),
 			attributes: {
 				char: this.charBuffer,
 				charOffset: {
@@ -90,10 +91,10 @@ class GlText {
 					stride: 8,
 					buffer: this.sizeBuffer
 				},
-				color: regl.this('color'),
 				position: regl.this('position')
 			},
 			uniforms: {
+				color: regl.prop('color'),
 				atlasSize: () => [this.fontAtlas.width, this.fontAtlas.height],
 				atlasDim: () =>	[this.fontAtlas.cols, this.fontAtlas.rows],
 				fontSize: regl.this('fontSize'),
@@ -102,7 +103,7 @@ class GlText {
 				viewport: regl.this('viewportArray'),
 				scale: regl.this('scale'),
 				align: regl.this('alignOffset'),
-				baseline: regl.this('baselineOffset'),
+				baseline: regl.prop('baseline'),
 				translate: regl.this('translate'),
 				charStep: () => this.fontAtlas.step,
 				offset: regl.this('offset')
@@ -114,9 +115,9 @@ class GlText {
 			precision highp float;
 			attribute float width, charOffset, char;
 			attribute vec2 position;
-			attribute vec4 color;
 			uniform float fontSize, charStep, em, align, baseline;
 			uniform vec4 viewport;
+			uniform vec4 color;
 			uniform vec2 atlasSize, atlasDim, scale, translate, offset;
 			varying vec2 charCoord, charId;
 			varying float charWidth;
@@ -559,17 +560,23 @@ class GlText {
 		}
 		if (o.baseline != null) {
 			this.baseline = o.baseline
-			let m = this.font.metrics
-			let base = 0
-			base += m.bottom * .5
-			if (typeof this.baseline === 'number') {
-				base += (this.baseline - m.baseline)
-			}
-			else {
-				base += -m[this.baseline]
-			}
-			if (!GlText.normalViewport) base *= -1
-			this.baselineOffset = base
+			if (!Array.isArray(this.baseline)) this.baseline = [this.baseline]
+			this.baselineOffset = this.baseline.map(baseline => {
+				let m = this.font.metrics
+				let base = 0
+
+				base += m.bottom * .5
+
+				if (typeof baseline === 'number') {
+					base += (baseline - m.baseline)
+				}
+				else {
+					base += -m[baseline]
+				}
+
+				if (!GlText.normalViewport) base *= -1
+				return base
+			})
 		}
 
 		// flatten colors to a single uint8 array
@@ -602,31 +609,20 @@ class GlText {
 					}
 				}
 
-				if (this.color.call) {
-					this.color({
-						type: 'uint8',
-						data: colorData
-					})
-				} else {
-					this.color = this.regl.buffer({
-						type: 'uint8',
-						data: colorData
-					})
-				}
-
-				pool.freeUint8(colorData)
+				this.color = colorData
 			}
 		}
 
 		// update render batch
 		if (o.position || o.text || o.color || o.baseline) {
-			this.batch = Array(o.position)
+			this.batch = Array(o.position.length)
+			let multiColor = this.color.length > 4
 			for (let i = 0; i < this.batch.length; i++) {
 				this.batch[i] = {
 					count: this.counts[i],
 					offset: this.textOffsets[i],
-					color: this.color.subarray(i * 4, i * 4 + 4),
-					// baseline:
+					color: !multiColor ? this.color : this.color.subarray(i * 4, i * 4 + 4),
+					baseline: this.baselineOffset[i] != null ? this.baselineOffset[i] : this.baselineOffset[0]
 					// align:
 					// font:
 				}
