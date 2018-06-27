@@ -666,7 +666,8 @@ class GlText {
 						offset: this.textOffsets[i],
 						color: !this.color ? [0,0,0,255] : this.color.length <= 4 ? this.color : this.color.subarray(i * 4, i * 4 + 4),
 						baseline: this.baselineOffset[i] != null ? this.baselineOffset[i] : this.baselineOffset[0],
-						align: !this.align ? 0 : this.alignOffset[i] != null ? this.alignOffset[i] : this.alignOffset[0]
+						align: !this.align ? 0 : this.alignOffset[i] != null ? this.alignOffset[i] : this.alignOffset[0],
+						atlas: this.fontAtlas[i] || this.fontAtlas[0]
 					}
 				}
 			}
