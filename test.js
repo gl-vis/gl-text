@@ -70,12 +70,12 @@ t('alignment', t => {
 	t.end()
 })
 
-t('1e6 letters', t => {
+t.skip('1e6 letters', t => {
 	let chars = 'abc'
 
 	let positions = [], text = []
 
-	for (let i = 0; i < 1e2; i++) {
+	for (let i = 0; i < 1e3; i++) {
 		for (let j = 0; j < 1e2; j++) {
 			text.push(chars)
 			positions.push([Math.random() * 1e3, Math.random() * 1e3])
@@ -99,14 +99,14 @@ t('color')
 
 t('baseline')
 
-t.only('array align, position, color, baseline, font, offset', t => {
+t('array align, position, color, baseline, font, offset', t => {
 	let text = new Text(gl)
 
 	text.update({
 		text: ['red', 'green', 'blue'],
 		position: [[0,50], [150,50], [300,50]],
 		// color: 0x00ff00,
-		color: [0xff0000, 0x00ff00, 0x0000ff],
+		color: [0xff0000, 'green', 0x0000ff],
 		// baseline: 'bottom',
 		baseline: ['top', 'middle', 'bottom'],
 		// align: 'right',
@@ -114,7 +114,7 @@ t.only('array align, position, color, baseline, font, offset', t => {
 		font: ['sans-serif', 'serif', 'monospace'],
 
 		offset: [[0,0], [-1,-1], [-2,-2]],
-		opacity: [.5, .75, 1]
+		opacity: [.5, .75, 1],
 	})
 	// text.update({opacity: [.1, .45, 1]})
 	// text.render()

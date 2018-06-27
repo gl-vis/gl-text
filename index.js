@@ -170,7 +170,7 @@ class GlText {
 			}
 
 			void main () {
-				vec2 uv = floor(gl_FragCoord.xy - charCoord + charStep * .5);
+				vec2 uv = gl_FragCoord.xy - charCoord + charStep * .5;
 				float halfCharStep = floor(charStep * .5 + .5);
 
 				// invert y and shift by 1px (FF expecially needs that)
