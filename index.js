@@ -577,6 +577,9 @@ class GlText {
 					atlas.height = atlasHeight;
 					atlas.rows = rows
 					atlas.cols = cols
+
+					if (!atlas.em) return
+
 					atlas.texture({
 						data: fontAtlas({
 							canvas: GlText.atlasCanvas,
@@ -661,7 +664,7 @@ class GlText {
 					let l = o.color.length
 					colorData = pool.mallocUint8(l * 4)
 					for (let i = 0; i < l; i++) {
-						colorData.set(rgba(o.color[i], 'uint8'), i * 4)
+						colorData.set(rgba(o.color[i] || 0, 'uint8'), i * 4)
 					}
 				}
 
