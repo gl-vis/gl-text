@@ -674,7 +674,12 @@ class GlText {
 
 		// update render batch
 		if (o.position || o.text || o.color || o.baseline || o.align || o.font || o.offset) {
-			if (Array.isArray(o.color) || Array.isArray(o.baseline) || Array.isArray(o.align) || Array.isArray(o.font)) {
+			let isBatch = (Array.isArray(o.color) && this.color.length > 4)
+				|| (Array.isArray(o.baseline) && o.baseline.length > 1)
+				|| (Array.isArray(o.align) && o.align.length > 1)
+				|| (Array.isArray(o.font) && o.font.length > 1)
+
+			if (isBatch) {
 				let length = Math.max(
 					Array.isArray(o.text) ? o.text.length : 1,
 					Array.isArray(o.color) ? o.color.length : 1,
