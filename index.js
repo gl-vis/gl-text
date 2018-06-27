@@ -15,6 +15,7 @@ let px = require('to-px')
 let kerning = require('detect-kerning')
 let extend = require('object-assign')
 let metrics = require('font-measure')
+let flatten = require('flatten-vertex-data')
 
 
 let shaderCache = new WeakMap
@@ -67,6 +68,7 @@ class GlText {
 	createShader () {
 		let regl = this.regl
 
+		// FIXME: store 2 shader versions: with normal viewport and without
 		// draw texture method
 		let draw = regl({
 			blend: {
@@ -111,7 +113,7 @@ class GlText {
 				align: regl.prop('align'),
 				baseline: regl.prop('baseline'),
 				translate: regl.this('translate'),
-				offset: regl.this('offset')
+				positionOffset: regl.prop('positionOffset')
 			},
 			primitive: 'points',
 			viewport: regl.this('viewport'),
@@ -123,12 +125,17 @@ class GlText {
 			uniform float fontSize, charStep, em, align, baseline;
 			uniform vec4 viewport;
 			uniform vec4 color;
-			uniform vec2 atlasSize, atlasDim, scale, translate, offset;
+			uniform vec2 atlasSize, atlasDim, scale, translate, positionOffset;
 			varying vec2 charCoord, charId;
 			varying float charWidth;
 			varying vec4 fontColor;
 			void main () {
-				vec2 offset = floor(em * (vec2(align + charOffset, baseline) + offset)) / (viewport.zw * scale.xy);
+				${ !GlText.normalViewport ? 'vec2 positionOffset = vec2(positionOffset.x,- positionOffset.y);' : '' }
+
+				vec2 offset = floor(em * (vec2(align + charOffset, baseline)
+					+ positionOffset))
+					/ (viewport.zw * scale.xy);
+
 				vec2 position = (position + translate) * scale;
 				position += offset * scale;
 
@@ -217,7 +224,7 @@ class GlText {
 			range: 'range dataBox',
 			viewport: 'vp viewport viewBox viewbox viewPort',
 			opacity: 'opacity alpha transparency visible visibility opaque',
-			offset: 'offset padding shift indent indentation'
+			offset: 'offset positionOffset padding shift indent indentation'
 		}, true)
 
 
@@ -245,12 +252,9 @@ class GlText {
 		if (o.kerning != null) this.kerning = o.kerning
 
 		if (o.offset != null) {
-			if (typeof o.offset === 'number') this.offset = [o.offset, 0]
-			else this.offset = o.offset.slice()
+			if (typeof o.offset === 'number') this.positionOffset = [o.offset, 0]
 
-			if (!GlText.normalViewport) {
-				this.offset[1] *= -1
-			}
+			this.positionOffset = flatten(o.offset)
 		}
 
 		if (o.direction) this.direction = o.direction
@@ -667,7 +671,8 @@ class GlText {
 						color: !this.color ? [0,0,0,255] : this.color.length <= 4 ? this.color : this.color.subarray(i * 4, i * 4 + 4),
 						baseline: this.baselineOffset[i] != null ? this.baselineOffset[i] : this.baselineOffset[0],
 						align: !this.align ? 0 : this.alignOffset[i] != null ? this.alignOffset[i] : this.alignOffset[0],
-						atlas: this.fontAtlas[i] || this.fontAtlas[0]
+						atlas: this.fontAtlas[i] || this.fontAtlas[0],
+						positionOffset: this.positionOffset.length > 2 ? this.positionOffset.subarray(i * 2, i * 2 + 2) : this.positionOffset
 					}
 				}
 			}
@@ -680,7 +685,8 @@ class GlText {
 						color: this.color || [0,0,0,255],
 						baseline: this.baselineOffset[0],
 						align: this.alignOffset ? this.alignOffset[0] : 0,
-						atlas: this.fontAtlas[0]
+						atlas: this.fontAtlas[0],
+						positionOffset: this.positionOffset
 					}]
 				}
 			}
@@ -700,7 +706,7 @@ GlText.prototype.translate = null
 GlText.prototype.scale = null
 GlText.prototype.font = null
 GlText.prototype.text = ''
-GlText.prototype.offset = [0, 0]
+GlText.prototype.positionOffset = [0, 0]
 
 
 // whether viewport should be top↓bottom 2d one (true) or webgl one (false)

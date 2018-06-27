@@ -57,7 +57,7 @@ Option | Description
 `font` 			| Font family, CSS font string or an object with font properties like `{family, size, style}`, see [css-font](https://ghub.io/css-font). Can be an array.																	|
 `fontSize`/`em` | Font-size, can be changed independently of `font`.						|
 `kerning` 		| Enable font kerning, by default `true`. Disable for the case of monospace fonts. See [detect-kerning](https://ghub.io/detect-kerning) package.																					|
-`offset` 		| Shift `position` by the number of ems. Useful for organizing multiple lines, indentation, sub/sup script etc. Does not get affected by `position` change. Can be a number for x-offset only or an array `[x, y]`.						|
+`offset` 		| Shift `position` by the number of ems. Useful for organizing multiple lines, indentation, sub/sup script etc. Does not get affected by `position` change. Can be a number for x-offset only or a couple `[x, y]` for single position or array `[[x, y], [x, y], ...]` for multiple positions.						|
 `range` 		| Data area corresponding to position in viewport. Useful for organizing zoom/pan. By default is the same as the viewport `[0, 0, canvas.width, canvas.height]`.																|
 `scale`/`translate` | An alternative to `range`.											|
 `viewport` 		| Visible area within the canvas, an array `[left, top, width, height]` or rectangle `{x, y, width, height}`, see [parse-rect](https://ghub.io/parse-rect).

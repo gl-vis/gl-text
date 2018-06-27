@@ -70,7 +70,7 @@ t('alignment', t => {
 	t.end()
 })
 
-t.only('1e6 letters', t => {
+t('1e6 letters', t => {
 	let chars = 'abc'
 
 	let positions = [], text = []
@@ -99,7 +99,7 @@ t('color')
 
 t('baseline')
 
-t.skip('array align, position, color, baseline, font', t => {
+t.only('array align, position, color, baseline, font, offset', t => {
 	let text = new Text(gl)
 
 	text.update({
@@ -111,7 +111,9 @@ t.skip('array align, position, color, baseline, font', t => {
 		baseline: ['top', 'middle', 'bottom'],
 		// align: 'right',
 		align: ['left', 'center', 'right'],
-		font: ['sans-serif', 'serif', 'monospace']
+		font: ['sans-serif', 'serif', 'monospace'],
+
+		offset: [[0,0], [1,1], [2,2]]
 	})
 
 	q.push(text)
@@ -203,9 +205,7 @@ t.skip('Augment chars', t => {
 	t.end()
 })
 
-t.skip('updating offset twice does not invert sing', t => {
-	t.end()
-})
+t.skip('updating offset twice does not invert sign')
 
 
 
