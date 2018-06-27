@@ -260,7 +260,7 @@ class GlText {
 		if (o.kerning != null) this.kerning = o.kerning
 
 		if (o.offset != null) {
-			if (typeof o.offset === 'number') this.positionOffset = [o.offset, 0]
+			if (typeof o.offset === 'number') o.offset = [o.offset, 0]
 
 			this.positionOffset = flatten(o.offset)
 		}
