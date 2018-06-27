@@ -107,6 +107,7 @@ class GlText {
 				charStep: (c, p) => p.atlas.step,
 				em: (c, p) => p.atlas.em,
 				color: regl.prop('color'),
+				opacity: regl.prop('opacity'),
 				viewport: regl.this('viewportArray'),
 				scale: regl.this('scale'),
 				align: regl.prop('align'),
@@ -157,7 +158,7 @@ class GlText {
 			frag: `
 			precision highp float;
 			uniform sampler2D atlas;
-			uniform float fontSize, charStep;
+			uniform float fontSize, charStep, opacity;
 			uniform vec2 atlasSize;
 			uniform vec4 viewport;
 			varying vec4 fontColor;
@@ -189,6 +190,7 @@ class GlText {
 				float maskY = lightness(mask);
 				// float colorY = lightness(color);
 				color.a *= maskY;
+				color.a *= opacity;
 
 				// color.a += .1;
 
@@ -227,7 +229,14 @@ class GlText {
 		}, true)
 
 
-		if (o.opacity != null) this.opacity = parseFloat(o.opacity)
+		if (o.opacity != null) {
+			if (Array.isArray(o.opacity)) {
+				this.opacity = o.opacity.map(o => parseFloat(o))
+			}
+			else {
+				this.opacity = parseFloat(o.opacity)
+			}
+		}
 
 		if (o.viewport != null) {
 			this.viewport = parseRect(o.viewport)
@@ -595,9 +604,8 @@ class GlText {
 
 		if (o.align) {
 			this.align = o.align
-
 			this.alignOffset = this.textWidth.map((textWidth, i) => {
-				let align = Array.isArray(this.align) ? this.align[i] : this.align
+				let align = !Array.isArray(this.align) ? this.align : this.align.length > 1 ? this.align[i] : this.align[0]
 
 				if (typeof align === 'number') return align
 				switch (align) {
@@ -673,20 +681,21 @@ class GlText {
 		}
 
 		// update render batch
-		if (o.position || o.text || o.color || o.baseline || o.align || o.font || o.offset) {
-			let isBatch = (Array.isArray(o.color) && this.color.length > 4)
-				|| (Array.isArray(o.baseline) && o.baseline.length > 1)
-				|| (Array.isArray(o.align) && o.align.length > 1)
-				|| (Array.isArray(o.font) && o.font.length > 1)
-
+		if (o.position || o.text || o.color || o.baseline || o.align || o.font || o.offset || o.opacity) {
+			let isBatch = (this.color.length > 4)
+				|| (this.baselineOffset.length > 1)
+				|| (this.align && this.align.length > 1)
+				|| (this.fontAtlas.length > 1)
+				|| (this.positionOffset.length > 2)
 			if (isBatch) {
 				let length = Math.max(
-					Array.isArray(o.text) ? o.text.length : 1,
-					Array.isArray(o.color) ? o.color.length : 1,
-					Array.isArray(o.baseline) ? o.baseline.length : 1,
-					Array.isArray(o.align) ? o.align.length : 1,
-					Array.isArray(o.font) ? o.font.length : 1,
-					Array.isArray(o.offset) ? o.offset.length : 1
+					this.position.length * .5 || 0,
+					this.color.length * .25 || 0,
+					this.baselineOffset.length || 0,
+					this.alignOffset.length || 0,
+					this.font.length || 0,
+					this.opacity.length || 0,
+					this.positionOffset.length * .5 || 0
 				)
 				this.batch = Array(length)
 				for (let i = 0; i < this.batch.length; i++) {
@@ -695,6 +704,7 @@ class GlText {
 						count: this.counts.length > 1 ? this.counts[i] : this.counts[0],
 						offset: this.textOffsets.length > 1 ? this.textOffsets[i] : this.textOffsets[0],
 						color: !this.color ? [0,0,0,255] : this.color.length <= 4 ? this.color : this.color.subarray(i * 4, i * 4 + 4),
+						opacity: Array.isArray(this.opacity) ? this.opacity[i] : this.opacity,
 						baseline: this.baselineOffset[i] != null ? this.baselineOffset[i] : this.baselineOffset[0],
 						align: !this.align ? 0 : this.alignOffset[i] != null ? this.alignOffset[i] : this.alignOffset[0],
 						atlas: this.fontAtlas[i] || this.fontAtlas[0],
@@ -709,11 +719,15 @@ class GlText {
 						count: this.count,
 						offset: 0,
 						color: this.color || [0,0,0,255],
+						opacity: Array.isArray(this.opacity) ? this.opacity[0] : this.opacity,
 						baseline: this.baselineOffset[0],
 						align: this.alignOffset ? this.alignOffset[0] : 0,
 						atlas: this.fontAtlas[0],
 						positionOffset: this.positionOffset
 					}]
+				}
+				else {
+					this.batch = []
 				}
 			}
 		}
@@ -733,6 +747,9 @@ GlText.prototype.scale = null
 GlText.prototype.font = null
 GlText.prototype.text = ''
 GlText.prototype.positionOffset = [0, 0]
+GlText.prototype.opacity = 1
+GlText.prototype.color = new Uint8Array([0, 0, 0, 255])
+GlText.prototype.alignOffset = [0, 0]
 
 
 // whether viewport should be top↓bottom 2d one (true) or webgl one (false)

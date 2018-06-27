@@ -113,8 +113,11 @@ t.only('array align, position, color, baseline, font, offset', t => {
 		align: ['left', 'center', 'right'],
 		font: ['sans-serif', 'serif', 'monospace'],
 
-		offset: [[0,0], [1,1], [2,2]]
+		offset: [[0,0], [-1,-1], [-2,-2]],
+		opacity: [.5, .75, 1]
 	})
+	// text.update({opacity: [.1, .45, 1]})
+	// text.render()
 
 	q.push(text)
 
