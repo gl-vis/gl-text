@@ -57,7 +57,6 @@ class GlText {
 
 		this.draw = this.shader.draw.bind(this)
 		this.render = function () {
-			this.regl._refresh()
 			this.draw(this.batch)
 		}
 		this.canvas = this.gl.canvas
@@ -392,12 +391,23 @@ class GlText {
 			})
 		}
 
+		// if multiple positions - duplicate text arguments
+		// FIXME: this possibly can be done better to avoid array spawn
+		if (typeof o.text === 'string' && o.position && o.position.length > 2) {
+			let textArray = Array(o.position.length * .5)
+			for (let i = 0; i < textArray.length; i++) {
+				textArray[i] = o.text
+			}
+			o.text = textArray
+		}
+
 		// calculate offsets for the new font/text
 		let newAtlasChars
 		if (o.text != null || newFont) {
 			// FIXME: ignore spaces
 			// text offsets within the text buffer
 			this.textOffsets = [0]
+
 			if (Array.isArray(o.text)) {
 				this.count = o.text[0].length
 				this.counts = [this.count]
@@ -660,14 +670,22 @@ class GlText {
 		}
 
 		// update render batch
-		if (o.position || o.text || o.color || o.baseline || o.align || o.font) {
+		if (o.position || o.text || o.color || o.baseline || o.align || o.font || o.offset) {
 			if (Array.isArray(o.color) || Array.isArray(o.baseline) || Array.isArray(o.align) || Array.isArray(o.font)) {
-				this.batch = Array(o.text.length)
+				let length = Math.max(
+					Array.isArray(o.text) ? o.text.length : 1,
+					Array.isArray(o.color) ? o.color.length : 1,
+					Array.isArray(o.baseline) ? o.baseline.length : 1,
+					Array.isArray(o.align) ? o.align.length : 1,
+					Array.isArray(o.font) ? o.font.length : 1,
+					Array.isArray(o.offset) ? o.offset.length : 1
+				)
+				this.batch = Array(length)
 				for (let i = 0; i < this.batch.length; i++) {
 					let atlas = this.fontAtlas[i] || this.fontAtlas[0]
 					this.batch[i] = {
-						count: this.counts[i],
-						offset: this.textOffsets[i],
+						count: this.counts.length > 1 ? this.counts[i] : this.counts[0],
+						offset: this.textOffsets.length > 1 ? this.textOffsets[i] : this.textOffsets[0],
 						color: !this.color ? [0,0,0,255] : this.color.length <= 4 ? this.color : this.color.subarray(i * 4, i * 4 + 4),
 						baseline: this.baselineOffset[i] != null ? this.baselineOffset[i] : this.baselineOffset[0],
 						align: !this.align ? 0 : this.alignOffset[i] != null ? this.alignOffset[i] : this.alignOffset[0],
