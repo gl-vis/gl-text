@@ -35,7 +35,7 @@
     "es6-weak-map": "^2.0.2",
     "flatten-vertex-data": "^1.0.2",
     "font-atlas": "^2.1.0",
-    "font-measure": "^1.2.0",
+    "font-measure": "^1.2.2",
     "gl-util": "^3.0.7",
     "is-plain-obj": "^1.1.0",
     "object-assign": "^4.1.1",

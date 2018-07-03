@@ -21,6 +21,15 @@ let flatten = require('flatten-vertex-data')
 let shaderCache = new WeakMap
 
 
+// Safari does not support font-stretch
+let isStretchSupported = false
+let el = document.body.appendChild(document.createElement('div'))
+el.style.font = 'italic small-caps bold condensed 16px/2 cursive'
+if (getComputedStyle(el).fontStretch) {
+	isStretchSupported = true
+}
+document.body.removeChild(el)
+
 class GlText {
 	constructor (o) {
 		if (isRegl(o)) {
@@ -301,7 +310,7 @@ class GlText {
 				let baseString = Font.stringify({
 					size: GlText.baseFontSize,
 					family: font.family,
-					stretch: font.stretch,
+					stretch: isStretchSupported ? font.stretch : undefined,
 					variant: font.variant,
 					weight: font.weight,
 					style: font.style
@@ -322,6 +331,11 @@ class GlText {
 					this.font[i] = GlText.fonts[baseString]
 					if (!this.font[i]) {
 						let family = font.family.join(', ')
+						let style = [font.style]
+						if (font.style != font.variant) style.push(font.variant)
+						if (font.variant != font.weight) style.push(font.weight)
+						if (isStretchSupported && font.weight != font.stretch) style.push(font.stretch)
+
 						this.font[i] = {
 							baseString,
 
@@ -341,7 +355,7 @@ class GlText {
 							metrics: metrics(family, {
 								origin: 'top',
 								fontSize: GlText.baseFontSize,
-								fontStyle: `${font.style} ${font.variant} ${font.weight} ${font.stretch}`
+								fontStyle: style.join(' ')
 							})
 						}
 
@@ -367,7 +381,7 @@ class GlText {
 				let fontString = Font.stringify({
 					size: this.fontSize[i],
 					family: font.family,
-					stretch: font.stretch,
+					stretch: isStretchSupported ? font.stretch : undefined,
 					variant: font.variant,
 					weight: font.weight,
 					style: font.style
@@ -436,10 +450,10 @@ class GlText {
 			newAtlasChars = []
 
 			// detect & measure new characters
-			this.font.forEach((font, i) => {
+			this.font.forEach((font, idx) => {
 				GlText.atlasContext.font = font.baseString
 
-				let atlas = this.fontAtlas[i]
+				let atlas = this.fontAtlas[idx]
 
 				for (let i = 0; i < this.text.length; i++) {
 					let char = this.text.charAt(i)
@@ -598,6 +612,7 @@ class GlText {
 							step: [step, step]
 						})
 					})
+
 				})
 			}
 		}

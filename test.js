@@ -145,7 +145,7 @@ t('viewport')
 
 t('range')
 
-t.skip('offset', t => {
+t('offset', t => {
 	// numeric offset
 	q.push(new Text({
 		gl,
@@ -171,7 +171,7 @@ t('ignore spaces')
 
 t('canvas2d performance')
 
-t.skip('Augment chars', t => {
+t('Augment chars', t => {
 	q.push(new Text({
 		gl,
 		font: {
