@@ -43,7 +43,7 @@ class GlText {
 		this.shader = shaderCache.get(this.gl)
 
 		if (!this.shader) {
-			this.regl = o.regl || createRegl({ gl: this.gl, extensions: 'ANGLE_instanced_arrays' })
+			this.regl = o.regl || createRegl({ gl: this.gl })
 		}
 		else {
 			this.regl = this.shader.regl
@@ -66,6 +66,9 @@ class GlText {
 
 		this.draw = this.shader.draw.bind(this)
 		this.render = function () {
+			// FIXME: add Safari regl report here:
+			// charBuffer and width just do not trigger
+			this.regl._refresh()
 			this.draw(this.batch)
 		}
 		this.canvas = this.gl.canvas
@@ -96,7 +99,6 @@ class GlText {
 			count: regl.prop('count'),
 			offset: regl.prop('offset'),
 			attributes: {
-				char: regl.this('charBuffer'),
 				charOffset: {
 					offset: 4,
 					stride: 8,
@@ -107,6 +109,7 @@ class GlText {
 					stride: 8,
 					buffer: regl.this('sizeBuffer')
 				},
+				char: regl.this('charBuffer'),
 				position: regl.this('position')
 			},
 			uniforms: {
@@ -574,7 +577,6 @@ class GlText {
 
 			// bump recalc align offset
 			if (!o.align) o.align = this.align
-
 			this.charBuffer({data: charIds, type: 'uint8', usage: 'stream'})
 			this.sizeBuffer({data: sizeData, type: 'float', usage: 'stream'})
 			pool.freeUint8(charIds)
@@ -714,7 +716,6 @@ class GlText {
 				)
 				this.batch = Array(length)
 				for (let i = 0; i < this.batch.length; i++) {
-					let atlas = this.fontAtlas[i] || this.fontAtlas[0]
 					this.batch[i] = {
 						count: this.counts.length > 1 ? this.counts[i] : this.counts[0],
 						offset: this.textOffsets.length > 1 ? this.textOffsets[i] : this.textOffsets[0],
