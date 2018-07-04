@@ -186,7 +186,7 @@ class GlText {
 				float halfCharStep = floor(charStep * .5 + .5);
 
 				// invert y and shift by 1px (FF expecially needs that)
-				uv.y = charStep - uv.y - .5;
+				uv.y = charStep - uv.y;
 
 				// ignore points outside of character bounding box
 				float halfCharWidth = ceil(charWidth * .5);
