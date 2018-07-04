@@ -16,7 +16,7 @@ let kerning = require('detect-kerning')
 let extend = require('object-assign')
 let metrics = require('font-measure')
 let flatten = require('flatten-vertex-data')
-
+let { nextPow2 } = require('bit-twiddle')
 
 let shaderCache = new WeakMap
 
@@ -596,9 +596,9 @@ class GlText {
 					let cols = Math.min(maxCols, atlas.chars.length)
 					let rows = Math.ceil(atlas.chars.length / cols)
 
-					let atlasWidth = cols * step
+					let atlasWidth = nextPow2( cols * step )
 					// let atlasHeight = Math.min(rows * step + step * .5, GlText.maxAtlasSize);
-					let atlasHeight = rows * step;
+					let atlasHeight = nextPow2( rows * step );
 
 					atlas.width = atlasWidth
 					atlas.height = atlasHeight;
