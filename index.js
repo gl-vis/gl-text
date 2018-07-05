@@ -23,12 +23,14 @@ let shaderCache = new WeakMap
 
 // Safari does not support font-stretch
 let isStretchSupported = false
-let el = document.body.appendChild(document.createElement('div'))
-el.style.font = 'italic small-caps bold condensed 16px/2 cursive'
-if (getComputedStyle(el).fontStretch) {
-	isStretchSupported = true
+if (document.body) {
+    let el = document.body.appendChild(document.createElement('div'))
+    el.style.font = 'italic small-caps bold condensed 16px/2 cursive'
+    if (getComputedStyle(el).fontStretch) {
+        isStretchSupported = true
+    }
+    document.body.removeChild(el)
 }
-document.body.removeChild(el)
 
 class GlText {
 	constructor (o) {
