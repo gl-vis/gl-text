@@ -1,6 +1,6 @@
 {
   "name": "gl-text",
-  "version": "1.1.8",
+  "version": "1.2.0",
   "description": "Render text with WebGL",
   "main": "dist.js",
   "scripts": {
