@@ -5,3 +5,4 @@ instances
 *.psd
 docs
 gh-pages
+package-lock.json
