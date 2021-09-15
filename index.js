@@ -81,8 +81,6 @@ class GlText {
 	createShader () {
 		let regl = this.regl
 
-		// FIXME: store 2 shader versions: with normal viewport and without
-		// draw texture method
 		let draw = regl({
 			blend: {
 				enable: true,
@@ -144,16 +142,12 @@ class GlText {
 			varying float charWidth;
 			varying vec4 fontColor;
 			void main () {
-				${ !GlText.normalViewport ? 'vec2 positionOffset = vec2(positionOffset.x,- positionOffset.y);' : '' }
-
 				vec2 offset = floor(em * (vec2(align + charOffset, baseline)
-					+ positionOffset))
+					+ vec2(positionOffset.x, -positionOffset.y)))
 					/ (viewport.zw * scale.xy);
 
 				vec2 position = (position + translate) * scale;
 				position += offset * scale;
-
-				${ GlText.normalViewport ? 'position.y = 1. - position.y;' : '' }
 
 				charCoord = position * viewport.zw + viewport.xy;
 
@@ -254,10 +248,6 @@ class GlText {
 
 		if (o.viewport != null) {
 			this.viewport = parseRect(o.viewport)
-
-			if (GlText.normalViewport) {
-				this.viewport.y = this.canvas.height - this.viewport.y - this.viewport.height
-			}
 
 			this.viewportArray = [this.viewport.x, this.viewport.y, this.viewport.width, this.viewport.height]
 
@@ -660,7 +650,7 @@ class GlText {
 					base += -m[baseline]
 				}
 
-				if (!GlText.normalViewport) base *= -1
+				base *= -1
 				return base
 			})
 		}
@@ -769,9 +759,6 @@ GlText.prototype.opacity = 1
 GlText.prototype.color = new Uint8Array([0, 0, 0, 255])
 GlText.prototype.alignOffset = [0, 0]
 
-
-// whether viewport should be top↓bottom 2d one (true) or webgl one (false)
-GlText.normalViewport = false
 
 // size of an atlas
 GlText.maxAtlasSize = 1024
