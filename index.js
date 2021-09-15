@@ -165,10 +165,10 @@ class GlText {
 
 			frag: `
 			precision highp float;
-			uniform sampler2D atlas;
 			uniform float fontSize, charStep, opacity;
 			uniform vec2 atlasSize;
 			uniform vec4 viewport;
+			uniform sampler2D atlas;
 			varying vec4 fontColor;
 			varying vec2 charCoord, charId;
 			varying float charWidth;
