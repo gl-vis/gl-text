@@ -31,7 +31,7 @@
   "homepage": "https://github.com/a-vis/gl-text#readme",
   "dependencies": {
     "bit-twiddle": "^1.0.2",
-    "color-normalize": "^1.5.0",
+    "color-normalize": "^2.0.0",
     "css-font": "^1.2.0",
     "detect-kerning": "^2.1.2",
     "es6-weak-map": "^2.0.3",
