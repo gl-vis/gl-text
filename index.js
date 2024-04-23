@@ -300,7 +300,17 @@ class GlText {
 						font = Font.parse(GlText.baseFontSize + 'px ' + font)
 					}
 				}
-				else font = Font.parse(Font.stringify(font))
+				else {
+					let fontStyle = font.style
+					let fontWeight = font.weight
+					let fontStretch = font.stretch
+					let fontVariant = font.variant
+					font = Font.parse(Font.stringify(font))
+					if (fontStyle) font.style = fontStyle
+					if (fontWeight) font.weight = fontWeight
+					if (fontStretch) font.stretch = fontStretch
+					if (fontVariant) font.variant = fontVariant
+				}
 
 				let baseString = Font.stringify({
 					size: GlText.baseFontSize,

@@ -228,7 +228,17 @@ GlText.prototype.update = function update (o) {
 					font = Font.parse(GlText.baseFontSize + 'px ' + font)
 				}
 			}
-			else { font = Font.parse(Font.stringify(font)) }
+			else {
+				var fontStyle = font.style
+				var fontWeight = font.weight
+				var fontStretch = font.stretch
+				var fontVariant = font.variant
+				font = Font.parse(Font.stringify(font))
+				if (fontStyle) font.style = fontStyle
+				if (fontWeight) font.weight = fontWeight
+				if (fontStretch) font.stretch = fontStretch
+				if (fontVariant) font.variant = fontVariant
+			}
 
 			var baseString = Font.stringify({
 				size: GlText.baseFontSize,
