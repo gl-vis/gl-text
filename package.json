@@ -32,7 +32,7 @@
   "dependencies": {
     "bit-twiddle": "^1.0.2",
     "color-normalize": "^1.5.0",
-    "css-font": "^1.2.0",
+    "css-font": "github:archmoj/css-font#8a1f16f364c6480082badb2a14ab42331b7e33d5",
     "detect-kerning": "^2.1.2",
     "es6-weak-map": "^2.0.3",
     "flatten-vertex-data": "^1.0.2",
